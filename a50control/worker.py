@@ -55,7 +55,7 @@ class Worker:
         with self._cond:
             self._stop = True
             self._drain_until = time.monotonic() + flush_timeout
-            for key in [k for k in self._jobs if k == "poll" or k == "refresh"]:
+            for key in [k for k in self._jobs if k in ("poll", "refresh", "connect")]:
                 del self._jobs[key]
             self._cond.notify()
         self._thread.join(flush_timeout + 1.0)
@@ -78,10 +78,16 @@ class Worker:
                     GLib.idle_add(_call, error, exc, dev)
                 continue
             if done is not None and not self._stop:
-                GLib.idle_add(_call, done, result)
+                GLib.idle_add(self._deliver, done, result, dev, needs_device)
         if self.device is not None:
             self.device.close()
             self.device = None
+
+    def _deliver(self, done: Callable, result: Any, dev: Any, needs_device: bool) -> bool:
+        # Drop results of a connection that was replaced while the job was in flight.
+        if not needs_device or dev is self.device:
+            done(result)
+        return GLib.SOURCE_REMOVE
 
 
 def _call(fn: Callable, *args: Any) -> bool:

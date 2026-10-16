@@ -32,6 +32,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._preset_set_at = 0.0
         self._poll_failures = 0
         self._last_toast = ("", 0.0)
+        self._writes = 0  # bumped per queued write; full re-reads only apply if unchanged
+        self._saving = False
 
         self.view_stack = Adw.ViewStack()
         self.eq_page = EqPage(self)
@@ -174,13 +176,15 @@ class MainWindow(Adw.ApplicationWindow):
                 dev.close()
                 raise
             self.worker.device = dev
-            return copy.deepcopy(state)
+            return copy.deepcopy(state), dev
 
-        self.worker.submit("connect", job, lambda st: self._on_connected(st, path), self._on_connect_error,
+        self.worker.submit("connect", job, lambda res: self._on_connected(*res, path), self._on_connect_error,
                            needs_device=False)
 
-    def _on_connected(self, state, path: str) -> None:
+    def _on_connected(self, state, dev, path: str) -> None:
         self._connecting = False
+        if dev is not self.worker.device:
+            return  # dropped again before this callback ran (e.g. the first poll failed)
         self.node = path
         self.state = state
         self.sync_all()
@@ -252,7 +256,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def mark_changed(self) -> None:
         dirty = self.state is not None and self.worker.device is not None and self.state.dirty
-        self.lookup_action("save").set_enabled(dirty and not self.worker.pending("save"))
+        self.lookup_action("save").set_enabled(dirty and not self._saving)
         self.lookup_action("revert").set_enabled(dirty)
 
     def _on_poll(self, status) -> None:
@@ -275,6 +279,8 @@ class MainWindow(Adw.ApplicationWindow):
         if isinstance(exc, DeviceGone):
             self._disconnect("Verbindung zur Basisstation verloren")
             return
+        if not isinstance(exc, (Timeout, OSError)):
+            return  # the station answered, just not usefully; no reason to reconnect
         self._poll_failures += 1
         if self._poll_failures >= POLL_FAILURES_BEFORE_RESET:
             self._disconnect("Basisstation antwortet nicht – verbinde neu")
@@ -293,11 +299,19 @@ class MainWindow(Adw.ApplicationWindow):
             self.toast(f"Fehler: {exc}")
         self._resync()
 
-    def _resync(self) -> None:
+    def _resync(self, toast: str | None = None) -> None:
         """Re-read everything so the UI never shows values a failed write did not set."""
+        writes = self._writes
+
         def done(state):
+            if writes != self._writes:
+                self._resync(toast)  # an edit was queued after this read; read again
+                return
             self.state = state
             self.sync_all()
+            self._show_main()
+            if toast:
+                self.toast(toast)
 
         self.worker.submit("refresh", lambda d: copy.deepcopy(d.read_all()), done, self._on_poll_error)
 
@@ -306,6 +320,7 @@ class MainWindow(Adw.ApplicationWindow):
     def run(self, key, fn) -> None:
         """Queue a write job; the latest job per key wins."""
         if self.worker.device is not None:
+            self._writes += 1
             self.worker.submit(key, fn, None, self._on_error)
 
     def activate_preset(self, index: int) -> None:
@@ -364,6 +379,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
 
         def done(saved):
+            self._saving = False
             if self.state is None:
                 return
             self.state.saved = saved
@@ -371,9 +387,11 @@ class MainWindow(Adw.ApplicationWindow):
             self.toast("Im Headset gespeichert")
 
         def failed(exc, dev):
+            self._saving = False
             self._on_error(exc, dev)
             self.mark_changed()
 
+        self._saving = True
         self.worker.submit("save", lambda d: (d.save(), copy.deepcopy(d.state.saved))[1], done, failed)
         self.mark_changed()
 
@@ -381,7 +399,12 @@ class MainWindow(Adw.ApplicationWindow):
         if self.worker.device is None:
             return
 
+        writes = self._writes
+
         def done(state):
+            if writes != self._writes:
+                self._resync("Änderungen verworfen")
+                return
             self.state = state
             self.sync_all()
             self.toast("Änderungen verworfen")
@@ -393,10 +416,4 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect()
             return
 
-        def done(state):
-            self.state = state
-            self.sync_all()
-            self._show_main()
-            self.toast("Einstellungen neu eingelesen")
-
-        self.worker.submit("refresh", lambda d: copy.deepcopy(d.read_all()), done, self._on_error)
+        self._resync("Einstellungen neu eingelesen")

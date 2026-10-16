@@ -20,8 +20,10 @@ esac
 
 refresh_caches() {
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$PREFIX/share/applications" || true
-    if [ -f "$PREFIX/share/icons/hicolor/index.theme" ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
-        gtk-update-icon-cache -q "$PREFIX/share/icons/hicolor" || true
+    if [ -f "$PREFIX/share/icons/hicolor/index.theme" ]; then
+        command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q "$PREFIX/share/icons/hicolor" || true
+    else
+        rm -f "$PREFIX/share/icons/hicolor/icon-theme.cache"  # stale cache from older installers
     fi
 }
 
