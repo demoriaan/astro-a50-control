@@ -14,8 +14,8 @@ rekonstruiert und am echten Gerät geprüft (Details: [docs/PROTOCOL.md](docs/PR
 * **Mikrofon** – USB-Mikrofonpegel, Sidetone, Noise Gate (Streaming/Night/Home/Tournament),
   Mikrofon-EQ (Bright/Airy/Warm)
 * **Stream-Port** – Ausgangsmix für Spiel, Chat, Mikrofon und AUX
-* **Gerät** – Akkustand, Live-Balance, Standard-Balance, Hinweistöne, LED-Helligkeit,
-  automatische Abschaltung, Firmware-Infos
+* **Gerät** – Headset an/im Dock, Akkustand, Live-Balance, Standard-Balance, Hinweistöne,
+  LED-Helligkeit, automatische Abschaltung, Firmware von Basis und Headset
 * Änderungen wirken sofort; **Speichern** schreibt sie dauerhaft ins Headset,
   **Verwerfen** holt den gespeicherten Stand zurück
 * Kommandozeile für Skripte: `a50control status`, `a50control preset 2`, …
@@ -71,9 +71,19 @@ GUI und Kommandozeile können nicht gleichzeitig mit der Basisstation sprechen
 
 * Die gezeichnete EQ-Kurve ist eine Näherung (Standard-Shelf/Glockenfilter); wie die
   Headset-DSP die Bandbreite genau interpretiert, ist nicht bekannt.
-* Ob Mikrofon-EQ, LED-Helligkeit und Abschaltzeit ohne „Speichern“ dauerhaft sind, ist
-  ungeklärt – im Zweifel speichern.
+* Alle Einstellungen existieren als Live- und als gespeicherte Kopie im Headset; ohne
+  „Speichern“ gehen Änderungen beim Ausschalten verloren.
 * Entwicklerwerkzeuge: `scripts/probe.py` (nur lesende Rohabfragen),
   `scripts/re/vtables.py` (RTTI-Vtables im ACC-Binary finden), `python3 -m unittest discover -s tests`.
+
+## Verwandte Projekte
+
+[eh-fifty](https://github.com/tdryer/eh-fifty) (Python-Bibliothek über PyUSB) und
+[astro-a50-gui](https://github.com/OJambrina/astro-a50-gui) (PyQt6-Oberfläche auf eh-fifty) steuern
+dieselbe Basisstation. A50 Control ist unabhängig aus dem ACC-Binary rekonstruiert; die
+Befehlscodes stimmen überein (Abgleich in [docs/PROTOCOL.md](docs/PROTOCOL.md#cross-check-with-eh-fifty)).
+Unterschiede: eh-fifty kennt LED-Helligkeit und Auto-Abschaltung nicht; A50 Control nutzt hidraw
+statt PyUSB (der Kernel-Treiber bleibt gebunden). Achtung: eh-fifty dokumentiert die
+Spiel/Chat-Balance spiegelverkehrt – per Audio-Test geprüft gilt 255 = nur Spiel.
 
 Nicht mit ASTRO Gaming oder Logitech verbunden. Nutzung auf eigene Gefahr.

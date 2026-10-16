@@ -31,16 +31,19 @@ This document only covers what the tested device accepts.
 
 ## Values with two copies
 
-Many reads return a **live** value and the value **saved** on the headset. Setters change
+Every setting has a **live** value and a value **saved** on the headset. Setters change
 the live copy only; `0x61` (ACC log: "sync") stores everything. ACC's "revert" writes
-the saved copy back. Verified: setting sidetone to 10 read back as `0a 00` (live, saved).
+the saved copy back. Verified: setting sidetone to 10 read back as `0a 00` (live, saved);
+auto power-off 20, brightness 60 and mic EQ 1 read back differently with `[0]` and `[1]`
+(ACC's Mimas code reads those three without a parameter, i.e. only the live copy).
 
 ## Commands
 
 | cmd | name | request payload | response data | verified |
 |-----|------|-----------------|---------------|----------|
 | `03` | base info | – | 38 bytes; `[4:6]` VID, `[6:8]` PID, `[8:15]` build date (u16 year, month, day, h, m, s), `[0x15:0x19]` u32 firmware version | read |
-| `55` | base DSP version | – | `[ver]` | read |
+| `54` | headset status | – | `[bits]`: bit0 docked, bit1 switched on (ACC `FUN_0048f070`) | yes |
+| `55` | base firmware minor | – | `[minor]`; ACC shows `major.minor`, e.g. 40372.43 | read |
 | `61` | save ("sync") | – | `[61, code]`; 0 = ok, 2 = busy → retry after 1.5 s. Takes ~2 s | yes |
 | `62` | set slider | `[slider, 0-100]` | `[62, slider]` | yes |
 | `63` | set EQ gains | `[preset 1-3, g1..g5]`, g = dB + 12 | `[63, preset]` | yes (GUI) |
@@ -61,13 +64,14 @@ the saved copy back. Verified: setting sidetone to 10 read back as `0a 00` (live
 | `75` | set base LED brightness | 9 × `[20-70]` | status 0, no data | yes (same value) |
 | `76` | set alert volume | `[0-100]` | `[76]` | yes (same value) |
 | `77` | get default balance | `[0=live / 1=saved]` | `[0-255]` | yes |
-| `78` | get auto power-off | – | `[minutes]` | yes |
-| `79` | get brightness | – | 9 bytes, ACC averages them | yes |
+| `78` | get auto power-off | `[0=live / 1=saved]` (none = live) | `[minutes]` | yes |
+| `79` | get brightness | `[0=live / 1=saved]` (none = live) | 9 bytes, ACC averages them | yes |
 | `7a` | get alert volume | `[0=live / 1=saved]` | `[0-100]` | yes |
-| `7b` | get mic EQ | – | `[mode]` | yes |
+| `7b` | get mic EQ | `[0=live / 1=saved]` (none = live) | `[mode]` | yes |
 | `7c` | get battery | – | `[percent \| 0x80 if charging]` | yes |
-| `d6` | headset DSP version (relayed) | – | `[ver]` | read |
-| `83` | headset info (relayed) | – | answered `HID_ERROR_SLAVE_TIMEOUT` with the headset switched on | **not working** |
+| `d6` | headset firmware minor (relayed) | – | `[minor]` | read |
+| `da` | headset firmware major (relayed) | – | u32le, e.g. 39964 | read |
+| `83` | headset info (relayed) | – | answered `HID_ERROR_SLAVE_TIMEOUT` with the headset switched on; ACC then falls back to `da` (`FUN_00484280`) | **not working** |
 
 ### Enumerations
 
@@ -77,15 +81,24 @@ the saved copy back. Verified: setting sidetone to 10 read back as `0a 00` (live
 * Noise gate (raw): 0 Streaming, 1 Night, 2 Home (ACC default), 3 Tournament
   (mapping from `FUN_00489c30`/`FUN_00487940` plus the enum string table at `0x425710`).
 * Mic EQ: 0 Bright, 1 Airy, 2 Warm.
-* Balance / mix: 0 = all voice, 255 = all game (verified with the headset buttons:
-  "game" raised 159 → 255, "voice" lowered 255 → 205).
+* Balance / mix: **0 = all voice/chat, 255 = all game.** Verified twice: the headset's
+  balance buttons ("game" raised 159 → 255, "voice" lowered 255 → 205), and independently of
+  button labels by playing a tone only on the `stereo-chat` sink and turning the balance until
+  it was quietest → 255. Note: eh-fifty documents the opposite (0 = all game).
 * EQ: band 1 and 5 have no bandwidth (shelves, bandwidth 0); bands 2–4 bandwidth is
   Q12 fixed point (`raw / 4096`), ACC range 0.1–3.0. Frequency 80–15000 Hz, gain ±12 dB.
   ACC labels the value "BANDWIDTH"; whether the DSP treats it as octaves or Q is not known.
+
+## Cross-check with eh-fifty
+
+[eh-fifty](https://github.com/tdryer/eh-fifty) (independently reverse-engineered PyUSB library, used by
+[astro-a50-gui](https://github.com/OJambrina/astro-a50-gui)) lists the same command codes,
+slider IDs and noise gate values as recovered here. Differences: it lacks LED brightness and
+auto power-off (`74/75/78/79`), sends no `0x0A` prefix for relayed commands (it passes it as
+payload instead – same bytes on the wire), and its balance direction is reversed (see above).
 
 ## Not covered / unknown
 
 * Firmware update (`0x83` data chunks, DFU reset) – deliberately not implemented.
 * Europa variant (12-byte noise gate blob, `0x6b` default mode, `0x65` set default mode).
-* Whether mic EQ, brightness and auto power-off persist without `0x61`.
 * Unsolicited input reports: none observed during testing; ACC polls.
