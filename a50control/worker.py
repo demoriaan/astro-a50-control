@@ -19,19 +19,20 @@ class Worker:
 
     def __init__(self) -> None:
         self.device = None
-        self._jobs: OrderedDict[Any, tuple[Job, Callable | None, Callable | None]] = OrderedDict()
+        self._jobs: OrderedDict[Any, tuple[Job, Callable | None, Callable | None, bool]] = OrderedDict()
         self._cond = threading.Condition()
         self._anon = 0
         self._stop = False
         self._thread = threading.Thread(target=self._run, name="a50-io", daemon=True)
         self._thread.start()
 
-    def submit(self, key: Any, job: Job, done: Callable | None = None, error: Callable | None = None) -> None:
+    def submit(self, key: Any, job: Job, done: Callable | None = None, error: Callable | None = None,
+               needs_device: bool = True) -> None:
         with self._cond:
             if key is None:
                 self._anon += 1
                 key = ("anon", self._anon)
-            self._jobs[key] = (job, done, error)
+            self._jobs[key] = (job, done, error, needs_device)
             self._cond.notify()
 
     def pending(self, key: Any) -> bool:
@@ -55,7 +56,9 @@ class Worker:
                     self._cond.wait()
                 if self._stop:
                     return
-                _key, (job, done, error) = self._jobs.popitem(last=False)
+                _key, (job, done, error, needs_device) = self._jobs.popitem(last=False)
+            if needs_device and self.device is None:
+                continue  # device went away after the job was queued
             try:
                 result = job(self.device)
             except Exception as exc:  # noqa: BLE001 - forwarded to the UI

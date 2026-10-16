@@ -1,0 +1,347 @@
+"""Main window: connection lifecycle, header bar and page switching."""
+from __future__ import annotations
+
+import copy
+import time
+
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+
+from .. import protocol as p
+from ..device import A50
+from ..transport import DeviceGone, DevicePermissionError, Timeout, Transport, find_devices
+from ..worker import Worker
+from .eq_page import EqPage
+from .pages import DevicePage, MicPage, StreamPage
+
+POLL_MS = 2000
+PRESET_SETTLE_S = 1.5
+UDEV_HINT = ("sudo install -m644 data/70-astro-a50.rules /etc/udev/rules.d/ && "
+             "sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw")
+
+
+class MainWindow(Adw.ApplicationWindow):
+    def __init__(self, app: Adw.Application) -> None:
+        super().__init__(application=app, title="A50 Control", default_width=1000, default_height=820)
+        self.set_size_request(360, 480)
+        self.worker = Worker()
+        self.state = None
+        self.node = ""
+        self._connecting = False
+        self._preset_set_at = 0.0
+
+        self.view_stack = Adw.ViewStack()
+        self.eq_page = EqPage(self)
+        self.mic_page = MicPage(self)
+        self.stream_page = StreamPage(self)
+        self.device_page = DevicePage(self)
+        for page, name, title, icon in (
+                (self.eq_page, "eq", "Equalizer", "a50-equalizer-symbolic"),
+                (self.mic_page, "mic", "Mikrofon", "audio-input-microphone-symbolic"),
+                (self.stream_page, "stream", "Stream-Port", "a50-stream-symbolic"),
+                (self.device_page, "device", "Gerät", "audio-headphones-symbolic")):
+            self.view_stack.add_titled_with_icon(page, name, title, icon)
+
+        self.header = Adw.HeaderBar()
+        self.switcher = Adw.ViewSwitcher(stack=self.view_stack, policy=Adw.ViewSwitcherPolicy.WIDE)
+        self.title = Adw.WindowTitle(title="A50 Control")
+        self.header.set_title_widget(self.title)
+        self.battery_icon = Gtk.Image(icon_name="battery-missing-symbolic")
+        self.battery_label = Gtk.Label(css_classes=["numeric", "caption-heading"])
+        battery = Gtk.Box(spacing=4, tooltip_text="Akku des Headsets")
+        battery.append(self.battery_icon)
+        battery.append(self.battery_label)
+        self.header.pack_start(battery)
+        self.header.pack_end(self._menu_button())
+        self.save_button = Gtk.Button(label="Speichern", css_classes=["suggested-action"], sensitive=False,
+                                      tooltip_text="Einstellungen dauerhaft im Headset speichern (Strg+S)",
+                                      action_name="win.save")
+        self.revert_button = Gtk.Button(icon_name="edit-undo-symbolic", sensitive=False,
+                                        tooltip_text="Ungespeicherte Änderungen verwerfen", action_name="win.revert")
+        self.header.pack_end(self.save_button)
+        self.header.pack_end(self.revert_button)
+
+        self.switcher_bar = Adw.ViewSwitcherBar(stack=self.view_stack)
+        self.status_page = Adw.StatusPage(icon_name="audio-headphones-symbolic")
+        self.status_button = Gtk.Button(label="Erneut suchen", halign=Gtk.Align.CENTER,
+                                        css_classes=["pill", "suggested-action"])
+        self.status_button.connect("clicked", self._on_status_button)
+        self._status_mode = "search"
+        self.status_page.set_child(self.status_button)
+        self.root = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.root.add_named(self.status_page, "status")
+        self.root.add_named(self.view_stack, "main")
+
+        view = Adw.ToolbarView(content=self.root)
+        view.add_top_bar(self.header)
+        view.add_bottom_bar(self.switcher_bar)
+        self.toasts = Adw.ToastOverlay(child=view)
+        self.set_content(self.toasts)
+
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 640sp"))
+        narrow.add_setter(self.switcher_bar, "reveal", True)
+        narrow.add_setter(self.switcher, "visible", False)
+        self.add_breakpoint(narrow)
+
+        self._add_actions()
+        self._show_status("Suche Basisstation …", "Verbinde die ASTRO A50 Basisstation per USB.", busy=True)
+        self.connect("close-request", self._on_close)
+        GLib.idle_add(self._tick)
+        GLib.timeout_add(POLL_MS, self._tick)
+
+    # -- chrome ------------------------------------------------------------
+
+    def _menu_button(self) -> Gtk.MenuButton:
+        menu = Gio.Menu()
+        menu.append("Neu einlesen", "win.refresh")
+        menu.append("Über A50 Control", "app.about")
+        return Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, primary=True,
+                              tooltip_text="Hauptmenü")
+
+    def _add_actions(self) -> None:
+        for name, cb, accel in (("save", self.save, "<Control>s"), ("revert", self.revert, None),
+                                ("refresh", self.refresh, "F5")):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda *_a, cb=cb: cb())
+            self.add_action(action)
+            if accel:
+                self.get_application().set_accels_for_action(f"win.{name}", [accel])
+
+    def toast(self, text: str) -> None:
+        self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
+
+    def _show_status(self, title: str, text: str, busy: bool = False, button: str | None = "Erneut suchen") -> None:
+        self._status_mode = "search"
+        self.status_page.set_title(title)
+        self.status_page.set_description(text)
+        self.status_page.set_icon_name("content-loading-symbolic" if busy else "audio-headphones-symbolic")
+        self.status_button.set_visible(button is not None)
+        if button:
+            self.status_button.set_label(button)
+        self.root.set_visible_child_name("status")
+        self.header.set_title_widget(self.title)
+        self.switcher_bar.set_visible(False)
+        for name in ("save", "revert"):
+            self.lookup_action(name).set_enabled(False)
+        self.battery_label.set_label("")
+        self.battery_icon.set_from_icon_name("battery-missing-symbolic")
+
+    def _show_main(self) -> None:
+        self.root.set_visible_child_name("main")
+        self.header.set_title_widget(self.switcher)
+        self.switcher_bar.set_visible(True)
+        self.lookup_action("revert").set_enabled(True)
+        self.lookup_action("save").set_enabled(True)
+
+    # -- connection --------------------------------------------------------
+
+    def _tick(self) -> bool:
+        if self.worker.device is None:
+            if not self._connecting:
+                self._connect()
+        elif not self.worker.pending("poll"):
+            self.worker.submit("poll", lambda d: copy.deepcopy(d.read_status()), self._on_poll, self._on_error)
+        return GLib.SOURCE_CONTINUE
+
+    def _connect(self) -> None:
+        paths = find_devices()
+        if not paths:
+            if self.root.get_visible_child_name() != "status" or self.state is not None:
+                self.state = None
+            self._show_status("Keine Basisstation gefunden",
+                              "Schließe die ASTRO A50 (Gen 4) Basisstation per USB an. "
+                              "Sie wird automatisch erkannt.")
+            return
+        self._connecting = True
+        path = paths[0]
+
+        def job(_dev):
+            dev = A50(Transport(path))
+            try:
+                state = dev.read_all()
+            except Exception:
+                dev.close()
+                raise
+            self.worker.device = dev
+            return copy.deepcopy(state)
+
+        self.worker.submit("connect", job, lambda st: self._on_connected(st, path), self._on_connect_error,
+                           needs_device=False)
+
+    def _on_connected(self, state, path: str) -> None:
+        self._connecting = False
+        self.node = path
+        self.state = state
+        self.sync_all()
+        self._show_main()
+        self.toast("Basisstation verbunden")
+
+    def _on_connect_error(self, exc: Exception) -> None:
+        self._connecting = False
+        if isinstance(exc, DevicePermissionError):
+            self._show_status("Kein Zugriff auf die Basisstation",
+                              f"Linux erlaubt den Zugriff auf {exc.path} nur root. Installiere einmalig die "
+                              f"udev-Regel aus dem Projektordner:\n\n<tt>{GLib.markup_escape_text(UDEV_HINT)}</tt>",
+                              button="Befehl kopieren")
+            self._status_mode = "permission"
+            return
+        self._show_status("Verbindung fehlgeschlagen", GLib.markup_escape_text(str(exc)))
+
+    def _on_status_button(self, _button) -> None:
+        if self._status_mode == "permission":
+            Gdk.Display.get_default().get_clipboard().set(UDEV_HINT)
+            self.toast("Befehl in die Zwischenablage kopiert")
+        else:
+            self.refresh()
+
+    def _on_close(self, *_args) -> bool:
+        dev = self.worker.device
+        self.worker.stop()
+        if dev is not None:
+            dev.close()
+        return False
+
+    # -- state propagation -------------------------------------------------
+
+    def sync_all(self) -> None:
+        self.eq_page.update(self.state)
+        self.mic_page.update(self.state)
+        self.stream_page.update(self.state)
+        self.device_page.update(self.state, self.node)
+        self._update_header()
+
+    def _update_header(self) -> None:
+        s = self.state
+        level = min(100, int(round(s.battery / 10.0)) * 10)
+        icon = f"battery-level-{level}-charging-symbolic" if s.charging else f"battery-level-{level}-symbolic"
+        self.battery_icon.set_from_icon_name(icon)
+        self.battery_label.set_label(f"{s.battery} %")
+        self.mark_changed()
+
+    def mark_changed(self) -> None:
+        dirty = self.state is not None and self.state.dirty
+        self.save_button.set_sensitive(dirty)
+        self.revert_button.set_sensitive(dirty)
+
+    def _on_poll(self, status) -> None:
+        if self.state is None:
+            return
+        s = self.state
+        s.battery, s.charging, s.mix = status.battery, status.charging, status.mix
+        settled = time.monotonic() - self._preset_set_at > PRESET_SETTLE_S
+        if settled and status.active_preset != s.active_preset and not self.worker.pending("preset"):
+            s.active_preset = status.active_preset
+            self.eq_page.update(s)
+        self.device_page.update_status(s)
+        self._update_header()
+
+    def _on_error(self, exc: Exception) -> None:
+        if isinstance(exc, (DeviceGone, OSError)):
+            dev, self.worker.device = self.worker.device, None
+            self.worker.clear()
+            if dev is not None:
+                dev.close()
+            self.state = None
+            self.toast("Verbindung zur Basisstation verloren")
+            self._show_status("Basisstation getrennt", "Warte auf die ASTRO A50 Basisstation …", busy=True)
+            return
+        if isinstance(exc, Timeout):
+            self.toast("Keine Antwort von der Basisstation")
+        elif isinstance(exc, p.DeviceError):
+            self.toast(f"Gerät meldet: {exc.message}")
+        else:
+            self.toast(f"Fehler: {exc}")
+
+    # -- actions used by pages --------------------------------------------
+
+    def run(self, key, fn) -> None:
+        """Queue a write job; the latest job per key wins."""
+        if self.worker.device is not None:
+            self.worker.submit(key, fn, None, self._on_error)
+
+    def activate_preset(self, index: int) -> None:
+        self.state.active_preset = index
+        self._preset_set_at = time.monotonic()
+        self.eq_page.update(self.state)
+        self.run("preset", lambda d: d.set_active_preset(index))
+
+    def apply_preset(self, index: int, preset: p.Preset) -> None:
+        name = preset.name or self.state.live.presets[index].name
+        preset = p.Preset(name[:p.NAME_MAX], copy.deepcopy(preset.bands))
+        self.state.live.presets[index] = preset
+        self.eq_page.update(self.state)
+        self.mark_changed()
+        self.run(("apply", index), lambda d: d.apply_preset(index, preset))
+        self.toast(f"„{name}“ geladen – zum Behalten speichern")
+
+    def set_slider(self, slider: int, value: int) -> None:
+        self.state.live.sliders[slider] = value
+        self.mark_changed()
+        self.run(("slider", slider), lambda d: d.set_slider(slider, value))
+
+    def set_noise_gate(self, mode: int) -> None:
+        self.state.live.noise_gate = mode
+        self.mark_changed()
+        self.run("noise-gate", lambda d: d.set_noise_gate(mode))
+
+    def set_mic_eq(self, mode: int) -> None:
+        self.state.mic_eq = mode
+        self.run("mic-eq", lambda d: d.set_mic_eq(mode))
+
+    def set_balance(self, value: int) -> None:
+        self.state.live.balance = value
+        self.mark_changed()
+        self.run("balance", lambda d: d.set_balance(value))
+
+    def set_alert_volume(self, value: int) -> None:
+        self.state.live.alert_volume = value
+        self.mark_changed()
+        self.run("alert", lambda d: d.set_alert_volume(value))
+
+    def set_brightness(self, value: int) -> None:
+        self.state.brightness = value
+        self.run("brightness", lambda d: d.set_brightness(value))
+
+    def set_auto_off(self, option: int) -> None:
+        self.state.auto_off = option
+        self.run("auto-off", lambda d: d.set_auto_off(option))
+
+    def save(self) -> None:
+        if self.worker.device is None or self.state is None:
+            return
+        self.save_button.set_sensitive(False)
+
+        def done(saved):
+            self.state.saved = saved
+            self.mark_changed()
+            self.toast("Im Headset gespeichert")
+
+        self.worker.submit(("save", time.monotonic()), lambda d: (d.save(), copy.deepcopy(d.state.saved))[1],
+                           done, self._on_save_error)
+
+    def _on_save_error(self, exc: Exception) -> None:
+        self.mark_changed()
+        self._on_error(exc)
+
+    def revert(self) -> None:
+        if self.worker.device is None:
+            return
+
+        def done(state):
+            self.state = state
+            self.sync_all()
+            self.toast("Änderungen verworfen")
+
+        self.worker.submit(("revert", time.monotonic()), lambda d: (d.revert(), copy.deepcopy(d.state))[1],
+                           done, self._on_error)
+
+    def refresh(self) -> None:
+        if self.worker.device is None:
+            self._connect()
+            return
+
+        def done(state):
+            self.state = state
+            self.sync_all()
+            self.toast("Einstellungen neu eingelesen")
+
+        self.worker.submit("refresh", lambda d: copy.deepcopy(d.read_all()), done, self._on_error)
