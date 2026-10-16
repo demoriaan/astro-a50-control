@@ -216,10 +216,14 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _update_header(self) -> None:
         s = self.state
-        level = min(100, int(round(s.battery / 10.0)) * 10)
-        icon = f"battery-level-{level}-charging-symbolic" if s.charging else f"battery-level-{level}-symbolic"
-        self.battery_icon.set_from_icon_name(icon)
-        self.battery_label.set_label(f"{s.battery} %")
+        if not s.headset_on:
+            self.battery_icon.set_from_icon_name("battery-missing-symbolic")
+            self.battery_label.set_label("Headset aus")
+        else:
+            level = min(100, int(round(s.battery / 10.0)) * 10)
+            suffix = "-charging" if s.charging else ""
+            self.battery_icon.set_from_icon_name(f"battery-level-{level}{suffix}-symbolic")
+            self.battery_label.set_label(f"{s.battery} %")
         self.mark_changed()
 
     def mark_changed(self) -> None:
@@ -232,6 +236,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         s = self.state
         s.battery, s.charging, s.mix = status.battery, status.charging, status.mix
+        s.headset_on, s.docked, s.headset_version = status.headset_on, status.docked, status.headset_version
         settled = time.monotonic() - self._preset_set_at > PRESET_SETTLE_S
         if settled and status.active_preset != s.active_preset and not self.worker.pending("preset"):
             s.active_preset = status.active_preset
@@ -289,7 +294,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.run("noise-gate", lambda d: d.set_noise_gate(mode))
 
     def set_mic_eq(self, mode: int) -> None:
-        self.state.mic_eq = mode
+        self.state.live.mic_eq = mode
+        self.mark_changed()
         self.run("mic-eq", lambda d: d.set_mic_eq(mode))
 
     def set_balance(self, value: int) -> None:
@@ -303,11 +309,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.run("alert", lambda d: d.set_alert_volume(value))
 
     def set_brightness(self, value: int) -> None:
-        self.state.brightness = value
+        self.state.live.brightness = value
+        self.mark_changed()
         self.run("brightness", lambda d: d.set_brightness(value))
 
     def set_auto_off(self, option: int) -> None:
-        self.state.auto_off = option
+        self.state.live.auto_off = option
+        self.mark_changed()
         self.run("auto-off", lambda d: d.set_auto_off(option))
 
     def save(self) -> None:

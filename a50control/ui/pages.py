@@ -31,6 +31,17 @@ def balance_text(value: int) -> str:
     return f"{100 - game}:{game}"
 
 
+def headset_text(state) -> str:
+    if not state.headset_on:
+        return "Headset ausgeschaltet – Akkustand vom letzten Kontakt"
+    parts = ["Headset an"]
+    if state.docked:
+        parts.append("in der Ladeschale")
+    if state.charging:
+        parts.append("lädt")
+    return ", ".join(parts)
+
+
 class ScaleRow(Adw.ActionRow):
     """Action row with a horizontal scale; calls ``on_change(int)`` on user edits."""
 
@@ -128,7 +139,7 @@ class MicPage(Adw.PreferencesPage):
         self.mic_level.set_value(state.live.sliders.get(Slider.MIC_LEVEL, 0))
         self.sidetone.set_value(state.live.sliders.get(Slider.SIDETONE, 0))
         self.noise_gate.set_value(state.live.noise_gate)
-        self.mic_eq.set_value(state.mic_eq)
+        self.mic_eq.set_value(state.live.mic_eq)
 
 
 class StreamPage(Adw.PreferencesPage):
@@ -199,11 +210,11 @@ class DevicePage(Adw.PreferencesPage):
         self.add(settings)
 
         info = Adw.PreferencesGroup(title="Basisstation")
-        self.fw_row = Adw.ActionRow(title="Firmware", css_classes=["property"])
+        self.fw_row = Adw.ActionRow(title="Firmware Basisstation", css_classes=["property"])
         self.build_row = Adw.ActionRow(title="Build-Datum", css_classes=["property"])
-        self.dsp_row = Adw.ActionRow(title="DSP-Version", css_classes=["property"])
+        self.headset_fw_row = Adw.ActionRow(title="Firmware Headset", css_classes=["property"])
         self.node_row = Adw.ActionRow(title="Gerät", css_classes=["property"])
-        for row in (self.fw_row, self.build_row, self.dsp_row, self.node_row):
+        for row in (self.fw_row, self.build_row, self.headset_fw_row, self.node_row):
             row.set_subtitle_selectable(True)
             info.add(row)
         self.add(info)
@@ -216,21 +227,22 @@ class DevicePage(Adw.PreferencesPage):
         self.update_status(state)
         self.balance.set_value(state.live.balance)
         self.alert.set_value(state.live.alert_volume)
-        self.brightness.set_value(state.brightness)
+        self.brightness.set_value(state.live.brightness)
         self._sync = True
         try:
-            self.auto_off.set_selected(state.auto_off)
+            self.auto_off.set_selected(state.live.auto_off)
         finally:
             self._sync = False
-        if state.tx:
-            self.fw_row.set_subtitle(str(state.tx.version))
-            self.build_row.set_subtitle(state.tx.build_date)
-        self.dsp_row.set_subtitle(str(state.tx_dsp) if state.tx_dsp is not None else "–")
+        if state.base:
+            self.fw_row.set_subtitle(f"{state.base.version}.{state.base_minor}")
+            self.build_row.set_subtitle(state.base.build_date)
+        self.headset_fw_row.set_subtitle(state.headset_version or "– (Headset aus)")
         self.node_row.set_subtitle(f"ASTRO A50 Gen 4 · {node}" if node else "ASTRO A50 Gen 4")
 
     def update_status(self, state) -> None:
         self.battery_bar.set_value(state.battery)
         self.battery_label.set_label(f"{state.battery} %")
-        self.battery_row.set_subtitle("Wird geladen" if state.charging else "")
+        self.battery_row.set_subtitle(headset_text(state))
+        self.headset_fw_row.set_subtitle(state.headset_version or "– (Headset aus)")
         self.mix_bar.set_value(state.mix)
         self.mix_label.set_label(balance_text(state.mix))

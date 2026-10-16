@@ -35,7 +35,8 @@ REMOTE_PREFIX = 0x0A
 
 class Cmd(IntEnum):
     TX_INFO = 0x03
-    TX_DSP_VERSION = 0x55
+    HEADSET_STATUS = 0x54
+    BASE_FW_MINOR = 0x55
     SAVE = 0x61
     SET_SLIDER = 0x62
     SET_EQ_GAINS = 0x63
@@ -61,8 +62,8 @@ class Cmd(IntEnum):
     GET_ALERT_VOLUME = 0x7A
     GET_MIC_EQ = 0x7B
     GET_BATTERY = 0x7C
-    RX_INFO = 0x83
-    RX_DSP_VERSION = 0xD6
+    HEADSET_FW_MINOR = 0xD6
+    HEADSET_FW_MAJOR = 0xDA
 
 
 class Slider(IntEnum):
@@ -231,8 +232,22 @@ def parse_noise_gate(data: bytes) -> tuple[int, int]:
     return rest[0], rest[1]
 
 
+def parse_u32(data: bytes) -> int:
+    if len(data) < 4:
+        raise ProtocolError(f"short u32 response: {data.hex()}")
+    return struct.unpack_from("<I", data)[0]
+
+
+def parse_headset_status(data: bytes) -> tuple[bool, bool]:
+    """HEADSET_STATUS -> (switched on, docked); ACC FUN_0048f070 reads the same bits."""
+    raw = data[0] if data else 0
+    return bool(raw & 0x02), bool(raw & 0x01)
+
+
 def parse_battery(data: bytes) -> tuple[int, bool]:
     """GET_BATTERY -> (percent, charging)."""
+    if not data:
+        raise ProtocolError("empty battery response")
     raw = data[0]
     return min(raw & 0x7F, 100), bool(raw & 0x80)
 
@@ -244,6 +259,8 @@ def parse_brightness(data: bytes) -> int:
 
 def parse_auto_off(data: bytes) -> int:
     """Map the minute value onto the nearest supported option index."""
+    if not data:
+        raise ProtocolError("empty auto-off response")
     minutes = data[0]
     return min(range(len(AUTO_OFF_MINUTES)), key=lambda i: abs(AUTO_OFF_MINUTES[i] - minutes))
 
@@ -267,8 +284,13 @@ def payload_eq_band(preset: int, band: int, freq: int, bandwidth: float) -> byte
     return bytes([preset + 1, band + 1]) + struct.pack("<HH", bw_to_raw(bandwidth), freq)
 
 
+def clip_name(name: str) -> str:
+    """Shorten a name to NAME_MAX UTF-8 bytes without splitting a character."""
+    return name.encode("utf-8")[:NAME_MAX].decode("utf-8", "ignore")
+
+
 def payload_eq_name(preset: int, name: str) -> bytes:
-    raw = name.encode("utf-8")[:NAME_MAX]
+    raw = clip_name(name).encode("utf-8")
     if not raw:
         raise ValueError("preset name must not be empty")
     return bytes([preset + 1, len(raw) + 1]) + raw + b"\0"

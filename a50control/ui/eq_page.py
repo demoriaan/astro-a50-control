@@ -107,7 +107,8 @@ class EqPage(Gtk.ScrolledWindow):
 
         name_group = Adw.PreferencesGroup(title="Preset")
         self.name_row = Adw.EntryRow(title="Name", show_apply_button=True)
-        self.name_row.set_max_length(p.NAME_MAX)
+        if hasattr(self.name_row, "set_max_length"):  # libadwaita >= 1.6
+            self.name_row.set_max_length(p.NAME_MAX)
         self.name_row.connect("apply", self._on_name_apply)
         name_group.add(self.name_row)
         box.append(name_group)

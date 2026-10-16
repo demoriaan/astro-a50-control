@@ -21,7 +21,10 @@ def open_device(path: str | None) -> A50:
 
 def print_status(dev: A50) -> None:
     s = dev.read_all()
-    print(f"Base station : FW {s.tx.version} (built {s.tx.build_date}), DSP {s.tx_dsp}")
+    print(f"Base station : FW {s.base.version}.{s.base_minor} (built {s.base.build_date})")
+    headset = "on" if s.headset_on else "off"
+    print(f"Headset      : {headset}{', docked' if s.docked else ''}"
+          + (f", FW {s.headset_version}" if s.headset_version else ""))
     print(f"Battery      : {s.battery}%{' (charging)' if s.charging else ''}")
     print(f"Game/Voice   : {s.mix}/255   default {s.live.balance}/255   (255 = all game)")
     print(f"Unsaved      : {'yes' if s.dirty else 'no'}")
@@ -33,9 +36,9 @@ def print_status(dev: A50) -> None:
     names = {sl: sl.name.lower() for sl in p.Slider}
     print("Sliders      : " + ", ".join(f"{names[k]}={v}" for k, v in sorted(s.live.sliders.items())))
     print(f"Noise gate   : {p.NoiseGate(s.live.noise_gate).name.lower()}")
-    print(f"Mic EQ       : {p.MicEq(s.mic_eq).name.lower()}")
+    print(f"Mic EQ       : {p.MicEq(s.live.mic_eq).name.lower()}")
     print(f"Alert volume : {s.live.alert_volume}")
-    print(f"LED          : {s.brightness}   auto-off: {p.AUTO_OFF_MINUTES[s.auto_off]} min")
+    print(f"LED          : {s.live.brightness}   auto-off: {p.AUTO_OFF_MINUTES[s.live.auto_off]} min")
 
 
 def main(argv: list[str] | None = None) -> int:

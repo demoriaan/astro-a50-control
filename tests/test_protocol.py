@@ -23,7 +23,7 @@ class EncodeTests(unittest.TestCase):
         self.assertFalse(any(pkt[4:]))
 
     def test_remote_request_gets_prefix(self):
-        pkt = p.encode_request(p.Cmd.RX_DSP_VERSION, b"", seq=1)
+        pkt = p.encode_request(p.Cmd.HEADSET_FW_MINOR, b"", seq=1)
         self.assertEqual(pkt[:4], bytes([0x02, 0xD6, 0x41, 0x0A]))
 
     def test_payload_limit(self):
