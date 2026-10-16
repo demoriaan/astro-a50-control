@@ -12,6 +12,19 @@ LIB=$PREFIX/share/a50control
 RULE=70-astro-a50.rules
 UDEV=yes
 
+case $PREFIX in
+    *[\"\$\`\\\|\&\;\%]* | "")
+        echo "PREFIX must not be empty or contain quotes, \$, \`, \\, |, &, ; or %: $PREFIX" >&2
+        exit 2 ;;
+esac
+
+refresh_caches() {
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$PREFIX/share/applications" || true
+    if [ -f "$PREFIX/share/icons/hicolor/index.theme" ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -q "$PREFIX/share/icons/hicolor" || true
+    fi
+}
+
 for arg in "$@"; do
     case $arg in
         --no-udev) UDEV=no ;;
@@ -20,6 +33,7 @@ for arg in "$@"; do
                 "$PREFIX/share/applications/$APP_ID.desktop" \
                 "$PREFIX/share/icons/hicolor/scalable/apps/$APP_ID.svg" \
                 "$PREFIX/share/metainfo/$APP_ID.metainfo.xml"
+            refresh_caches
             echo "Removed. The udev rule stays in /etc/udev/rules.d/$RULE (delete it with sudo if wanted)."
             exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
@@ -61,12 +75,11 @@ EOF
 chmod 755 "$PREFIX/bin/a50control"
 
 mkdir -p "$PREFIX/share/applications" "$PREFIX/share/icons/hicolor/scalable/apps" "$PREFIX/share/metainfo"
-sed "s|^Exec=.*|Exec=$PREFIX/bin/a50control|" "$SRC/data/$APP_ID.desktop" \
+sed "s|^Exec=.*|Exec=\"$PREFIX/bin/a50control\"|" "$SRC/data/$APP_ID.desktop" \
     > "$PREFIX/share/applications/$APP_ID.desktop"
 cp "$SRC/a50control/data/icons/hicolor/scalable/apps/$APP_ID.svg" "$PREFIX/share/icons/hicolor/scalable/apps/"
 cp "$SRC/data/$APP_ID.metainfo.xml" "$PREFIX/share/metainfo/"
-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$PREFIX/share/applications" || true
-command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "$PREFIX/share/icons/hicolor" || true
+refresh_caches
 
 echo "Installed A50 Control to $PREFIX (Python: $PYTHON)."
 

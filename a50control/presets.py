@@ -31,7 +31,7 @@ def factory_presets() -> list[Preset]:
 
 def load_ini(path: str | Path) -> Preset:
     """Read an ACC preset file ([General] Name, [Eq_Bands] Eq_* keys)."""
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(interpolation=None)
     cfg.optionxform = str
     if not cfg.read(path, encoding="utf-8-sig"):
         raise ValueError(f"cannot read {path}")
@@ -46,11 +46,11 @@ def load_ini(path: str | Path) -> Preset:
             width = min(p.BW_MAX, max(p.BW_MIN, width or 1.0))
         bands.append(Band(max(p.GAIN_MIN, min(p.GAIN_MAX, gain)),
                           max(p.FREQ_MIN, min(p.FREQ_MAX, freq)), round(width, 1)))
-    return Preset(name[:p.NAME_MAX], bands)
+    return Preset(p.clip_name(name), bands)
 
 
 def save_ini(preset: Preset, path: str | Path) -> None:
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(interpolation=None)
     cfg.optionxform = str
     cfg["General"] = {"Name": preset.name}
     eq = {}

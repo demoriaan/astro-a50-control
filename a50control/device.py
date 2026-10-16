@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from . import protocol as p
 from .protocol import Band, Cmd, DeviceError, FirmwareInfo, Preset, Slider
-from .transport import Transport
+from .transport import Timeout, Transport
 
 SAVE_BUSY = 2
 SAVE_BUSY_DELAY = 1.5
@@ -79,7 +79,6 @@ class A50:
             target.alert_volume = min(self._byte(Cmd.GET_ALERT_VOLUME, copy_sel), p.ALERT_MAX)
             target.brightness = p.parse_brightness(self.t.transact(Cmd.GET_BRIGHTNESS, copy_sel))
             target.auto_off = p.parse_auto_off(self.t.transact(Cmd.GET_AUTO_OFF, copy_sel))
-        self.read_headset_version()
         return s
 
     def read_status(self) -> State:
@@ -104,7 +103,7 @@ class A50:
             major = self.t.transact(Cmd.HEADSET_FW_MAJOR, timeout=2.5, retries=0)
             minor = self.t.transact(Cmd.HEADSET_FW_MINOR, timeout=2.5, retries=0)
             s.headset_version = f"{p.parse_u32(major)}.{minor[0]}"
-        except (DeviceError, p.ProtocolError, IndexError):
+        except (DeviceError, p.ProtocolError, IndexError, Timeout):
             s.headset_version = ""  # unknown; do not retry until the headset reconnects
 
     def read_preset(self, index: int) -> None:
@@ -206,21 +205,23 @@ class A50:
             raise DeviceError(Cmd.SAVE, code[0] if code else -1, "headset refused to save")
 
     def revert(self) -> None:
-        """Write the saved copy back into the live settings."""
-        live, saved = self.state.live, self.state.saved
-        for i, (cur, old) in enumerate(zip(live.presets, saved.presets)):
-            if [b.gain for b in cur.bands] != [b.gain for b in old.bands]:
-                self.set_gains(i, [b.gain for b in old.bands])
-            for b, (cb, ob) in enumerate(zip(cur.bands, old.bands)):
-                if (cb.freq, cb.bandwidth) != (ob.freq, ob.bandwidth):
-                    self.set_band(i, b, ob.freq, ob.bandwidth)
-            if cur.name != old.name and old.name:
-                self.set_name(i, old.name)
+        """Write the whole saved copy back into the live settings.
+
+        Everything is rewritten (about 35 requests) rather than only the values that
+        differ in our model: a write whose answer got lost may still have landed.
+        """
+        saved = copy.deepcopy(self.state.saved)
+        for i, preset in enumerate(saved.presets):
+            self.set_gains(i, [b.gain for b in preset.bands])
+            for b, band in enumerate(preset.bands):
+                self.set_band(i, b, band.freq, band.bandwidth)
+            if preset.name:
+                self.set_name(i, preset.name)
         for sid, value in saved.sliders.items():
-            if live.sliders.get(sid) != value:
-                self.set_slider(sid, value)
-        for attr, setter in (("noise_gate", self.set_noise_gate), ("mic_eq", self.set_mic_eq),
-                             ("balance", self.set_balance), ("alert_volume", self.set_alert_volume),
-                             ("brightness", self.set_brightness), ("auto_off", self.set_auto_off)):
-            if getattr(live, attr) != getattr(saved, attr):
-                setter(getattr(saved, attr))
+            self.set_slider(sid, value)
+        self.set_noise_gate(saved.noise_gate)
+        self.set_mic_eq(saved.mic_eq)
+        self.set_balance(saved.balance)
+        self.set_alert_volume(saved.alert_volume)
+        self.set_brightness(saved.brightness)
+        self.set_auto_off(saved.auto_off)

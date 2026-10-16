@@ -36,7 +36,7 @@ class Application(Adw.Application):
         else:
             css.load_from_data(text, -1)
         Gtk.StyleContext.add_provider_for_display(display, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        for name, cb, accels in (("about", self._about, []), ("quit", lambda *_: self.quit(), ["<Control>q"])):
+        for name, cb, accels in (("about", self._about, []), ("quit", self._quit, ["<Control>q"])):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", cb)
             self.add_action(action)
@@ -46,6 +46,13 @@ class Application(Adw.Application):
         if self.window is None:
             self.window = MainWindow(self)
         self.window.present()
+
+    def _quit(self, *_args) -> None:
+        # Close through the window so pending writes are flushed (close-request).
+        if self.window is not None:
+            self.window.close()
+        else:
+            self.quit()
 
     def _about(self, *_args) -> None:
         info = dict(application_name="A50 Control", application_icon=APP_ID, version=__version__,

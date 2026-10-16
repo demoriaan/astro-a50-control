@@ -16,7 +16,7 @@ dependencies = []
 a50control-cli = "a50control.cli:main"
 
 [project.gui-scripts]
-a50control = "a50control.app:main"
+a50control = "a50control.__main__:main"
 
 [tool.setuptools]
 packages = ["a50control", "a50control.ui"]

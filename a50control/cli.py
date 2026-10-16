@@ -6,7 +6,8 @@ import sys
 
 from . import protocol as p
 from .device import A50
-from .transport import DeviceBusy, DeviceNotFound, DevicePermissionError, Transport, find_devices
+from .transport import DeviceBusy, DeviceGone, DeviceNotFound, DevicePermissionError, Timeout, Transport, \
+    find_devices
 
 NOISE_GATE_NAMES = {m.name.lower(): m for m in p.NoiseGate}
 MIC_EQ_NAMES = {m.name.lower(): m for m in p.MicEq}
@@ -79,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
             dev.set_mic_eq(MIC_EQ_NAMES[args.mode])
         elif args.cmd == "save":
             dev.save()
+    except (Timeout, DeviceGone, p.DeviceError, p.ProtocolError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     finally:
         dev.close()
     return 0

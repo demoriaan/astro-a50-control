@@ -43,7 +43,7 @@ class EqGraph(Gtk.DrawingArea):
         self._drag_origin = (0.0, 0.0)
         self.set_draw_func(self._draw)
 
-        drag = Gtk.GestureDrag()
+        self._drag_gesture = drag = Gtk.GestureDrag()
         drag.connect("drag-begin", self._on_drag_begin)
         drag.connect("drag-update", self._on_drag_update)
         drag.connect("drag-end", lambda *_: self._end_drag())
@@ -52,13 +52,18 @@ class EqGraph(Gtk.DrawingArea):
         motion.connect("motion", self._on_motion)
         motion.connect("leave", lambda *_: self._set_hover(None))
         self.add_controller(motion)
-        scroll = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll = Gtk.EventControllerScroll(
+            flags=Gtk.EventControllerScrollFlags.VERTICAL | Gtk.EventControllerScrollFlags.DISCRETE)
         scroll.connect("scroll", self._on_scroll)
         self.add_controller(scroll)
 
     # -- public ------------------------------------------------------------
 
-    def set_bands(self, bands: list[p.Band]) -> None:
+    def set_bands(self, bands: list[p.Band], cancel_drag: bool = False) -> None:
+        """Show new band values; ``cancel_drag`` aborts a drag of stale (e.g. other preset) data."""
+        if cancel_drag and self._drag is not None:
+            self._drag_gesture.reset()
+            self._drag = None
         if self._drag is None:
             self.bands = copy.deepcopy(bands)
             self.queue_draw()
@@ -140,8 +145,9 @@ class EqGraph(Gtk.DrawingArea):
         self.queue_draw()
 
     def _on_scroll(self, _ctl, _dx: float, dy: float) -> bool:
-        index = self._hover if self._hover is not None else self.selected
-        if index not in p.PEAKING_BANDS:
+        # Only over a handle; elsewhere the wheel must keep scrolling the page.
+        index = self._hover
+        if index is None or index not in p.PEAKING_BANDS or dy == 0:
             return False
         band = self.bands[index]
         width = round(max(p.BW_MIN, min(p.BW_MAX, band.bandwidth - 0.1 * (1 if dy > 0 else -1))), 1)

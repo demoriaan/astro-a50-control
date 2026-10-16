@@ -1,6 +1,7 @@
 """Equalizer page: preset slots, curve editor, per-band controls."""
 from __future__ import annotations
 
+import configparser
 import copy
 
 from gi.repository import Adw, Gio, GLib, Gtk
@@ -151,6 +152,7 @@ class EqPage(Gtk.ScrolledWindow):
             preset = state.live.presets[self.preset_index]
             self.bands = copy.deepcopy(preset.bands)
             self.name_row.set_text(preset.name)
+            self.graph.set_bands(self.bands, cancel_drag=True)
             self._refresh()
         finally:
             self._sync = False
@@ -237,7 +239,9 @@ class EqPage(Gtk.ScrolledWindow):
         self.win.activate_preset(index)
 
     def _on_name_apply(self, row: Adw.EntryRow) -> None:
-        name = row.get_text().strip()
+        name = p.clip_name(row.get_text().strip())
+        if name != row.get_text():
+            row.set_text(name)
         if not name:
             self.win.toast("Der Name darf nicht leer sein")
             return
@@ -267,7 +271,7 @@ class EqPage(Gtk.ScrolledWindow):
                 return
             try:
                 self._apply(library.load_ini(file.get_path()))
-            except (OSError, ValueError, KeyError) as exc:
+            except (OSError, ValueError, KeyError, ArithmeticError, configparser.Error) as exc:
                 self.win.toast(f"Import fehlgeschlagen: {exc}")
 
         dialog.open(self.win, None, done)
@@ -285,7 +289,7 @@ class EqPage(Gtk.ScrolledWindow):
             try:
                 library.save_ini(preset, file.get_path())
                 self.win.toast(f"„{preset.name}“ exportiert")
-            except OSError as exc:
+            except (OSError, ValueError, configparser.Error) as exc:
                 self.win.toast(f"Export fehlgeschlagen: {exc}")
 
         dialog.save(self.win, None, done)

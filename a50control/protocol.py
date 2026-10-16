@@ -186,7 +186,8 @@ def raw_to_gain(raw: int) -> int:
 
 
 def bw_to_raw(bandwidth: float) -> int:
-    return int(bandwidth * BW_SCALE) & 0xFFFF
+    # ACC truncates; rounding matches values stored by the factory presets (0.1 -> 0x019a).
+    return round(bandwidth * BW_SCALE) & 0xFFFF
 
 
 def raw_to_bw(raw: int) -> float:
