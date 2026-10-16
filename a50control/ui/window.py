@@ -8,7 +8,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from .. import protocol as p
 from ..device import A50
-from ..transport import DeviceGone, DevicePermissionError, Timeout, Transport, find_devices
+from ..transport import DeviceBusy, DeviceGone, DevicePermissionError, Timeout, Transport, find_devices
 from ..worker import Worker
 from .eq_page import EqPage
 from .pages import DevicePage, MicPage, StreamPage
@@ -183,6 +183,11 @@ class MainWindow(Adw.ApplicationWindow):
                               f"udev-Regel aus dem Projektordner:\n\n<tt>{GLib.markup_escape_text(UDEV_HINT)}</tt>",
                               button="Befehl kopieren")
             self._status_mode = "permission"
+            return
+        if isinstance(exc, DeviceBusy):
+            self._show_status("Basisstation belegt",
+                              "Ein anderes Programm (z. B. die Kommandozeile von A50 Control) "
+                              "spricht gerade mit der Basisstation. Es wird automatisch erneut versucht.")
             return
         self._show_status("Verbindung fehlgeschlagen", GLib.markup_escape_text(str(exc)))
 

@@ -172,7 +172,7 @@ class A50:
     def save(self) -> None:
         """Persist the live settings on the headset (ACC calls this 'sync')."""
         for attempt in range(2):
-            data = self.t.transact(Cmd.SAVE, timeout=3.0)
+            data = self.t.transact(Cmd.SAVE, timeout=5.0)
             code = p.expect_echo(data, Cmd.SAVE)[:1]
             if code == b"\x00":
                 self.state.saved = copy.deepcopy(self.state.live)

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a50control"
+version = "0.1.0"
+description = "Linux control app for the ASTRO A50 Gen 4 wireless headset"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+# PyGObject, GTK >= 4.10 and libadwaita >= 1.4 come from the distribution.
+dependencies = []
+
+[project.scripts]
+a50control-cli = "a50control.cli:main"
+
+[project.gui-scripts]
+a50control = "a50control.app:main"
+
+[tool.setuptools]
+packages = ["a50control", "a50control.ui"]
+
+[tool.setuptools.package-data]
+a50control = ["data/*.css", "data/icons/hicolor/scalable/*/*.svg"]

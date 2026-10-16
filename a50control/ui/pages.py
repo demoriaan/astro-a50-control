@@ -22,24 +22,33 @@ MIC_EQ_TEXT = {
 }
 
 
+SCALE_WIDTH = 240
+
+
+def balance_text(value: int) -> str:
+    """Chat:game percentages; 0 = all chat, 255 = all game (verified with the headset buttons)."""
+    game = round(value * 100 / p.BALANCE_MAX)
+    return f"{100 - game}:{game}"
+
+
 class ScaleRow(Adw.ActionRow):
     """Action row with a horizontal scale; calls ``on_change(int)`` on user edits."""
 
     def __init__(self, title: str, subtitle: str, lo: int, hi: int, on_change, unit: str = "",
-                 mark: int | None = None, left: str | None = None, right: str | None = None) -> None:
+                 mark: int | None = None, left: str | None = None, right: str | None = None,
+                 fmt=None) -> None:
         super().__init__(title=title, subtitle=subtitle)
         self._sync = False
         self._on_change = on_change
-        self._unit = unit
+        self._fmt = fmt or (lambda v: f"{v}{unit}")
         box = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
         self.scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1)
         self.scale.set_draw_value(False)
-        self.scale.set_size_request(220, -1)
-        self.scale.set_hexpand(True)
+        self.scale.set_size_request(SCALE_WIDTH, -1)
         if mark is not None:
             self.scale.add_mark(mark, Gtk.PositionType.BOTTOM, None)
         self.scale.connect("value-changed", self._changed)
-        self.value_label = Gtk.Label(width_chars=5, xalign=1, css_classes=["numeric"])
+        self.value_label = Gtk.Label(width_chars=6, xalign=1, css_classes=["numeric"])
         if left:
             box.append(Gtk.Label(label=left, css_classes=["dim-label", "caption"]))
         box.append(self.scale)
@@ -50,7 +59,7 @@ class ScaleRow(Adw.ActionRow):
 
     def _changed(self, scale: Gtk.Scale) -> None:
         value = int(round(scale.get_value()))
-        self.value_label.set_label(f"{value}{self._unit}")
+        self.value_label.set_label(self._fmt(value))
         if not self._sync:
             self._on_change(value)
 
@@ -58,7 +67,7 @@ class ScaleRow(Adw.ActionRow):
         self._sync = True
         try:
             self.scale.set_value(value)
-            self.value_label.set_label(f"{int(value)}{self._unit}")
+            self.value_label.set_label(self._fmt(int(value)))
         finally:
             self._sync = False
 
@@ -153,23 +162,30 @@ class DevicePage(Adw.PreferencesPage):
         live = Adw.PreferencesGroup(title="Status")
         self.battery_row = Adw.ActionRow(title="Akku")
         self.battery_bar = Gtk.LevelBar(min_value=0, max_value=100, valign=Gtk.Align.CENTER)
-        self.battery_bar.set_size_request(160, -1)
-        self.battery_label = Gtk.Label(width_chars=5, xalign=1, css_classes=["numeric"])
+        self.battery_bar.set_size_request(SCALE_WIDTH, -1)
+        self.battery_label = Gtk.Label(width_chars=6, xalign=1, css_classes=["numeric"])
         self.battery_row.add_suffix(self.battery_bar)
         self.battery_row.add_suffix(self.battery_label)
         live.add(self.battery_row)
-        self.mix_row = Adw.ActionRow(title="Aktuelle Spiel/Chat-Balance",
+        self.mix_row = Adw.ActionRow(title="Aktuelle Chat/Spiel-Balance",
                                      subtitle="Wird an den Balance-Tasten des Headsets eingestellt")
         self.mix_bar = Gtk.LevelBar(min_value=0, max_value=p.BALANCE_MAX, valign=Gtk.Align.CENTER,
                                     mode=Gtk.LevelBarMode.CONTINUOUS)
-        self.mix_bar.set_size_request(160, -1)
+        self.mix_bar.set_size_request(SCALE_WIDTH, -1)
+        for offset in ("low", "high", "full"):
+            self.mix_bar.remove_offset_value(offset)
+        self.mix_label = Gtk.Label(width_chars=6, xalign=1, css_classes=["numeric"])
+        self.mix_row.add_suffix(Gtk.Label(label="Chat", css_classes=["dim-label", "caption"]))
         self.mix_row.add_suffix(self.mix_bar)
+        self.mix_row.add_suffix(Gtk.Label(label="Spiel", css_classes=["dim-label", "caption"]))
+        self.mix_row.add_suffix(self.mix_label)
         live.add(self.mix_row)
         self.add(live)
 
         settings = Adw.PreferencesGroup(title="Einstellungen")
-        self.balance = ScaleRow("Standard-Balance", "Spiel/Chat-Verhältnis beim Einschalten",
-                                0, p.BALANCE_MAX, window.set_balance, mark=128)
+        self.balance = ScaleRow("Standard-Balance", "Chat/Spiel-Verhältnis beim Einschalten",
+                                0, p.BALANCE_MAX, window.set_balance, mark=p.BALANCE_MAX // 2 + 1,
+                                left="Chat", right="Spiel", fmt=balance_text)
         self.alert = ScaleRow("Hinweistöne", "Lautstärke der Signal- und Ansagetöne",
                               0, p.ALERT_MAX, window.set_alert_volume, unit=" %")
         self.brightness = ScaleRow("LED-Helligkeit", "Beleuchtung der Basisstation",
@@ -217,3 +233,4 @@ class DevicePage(Adw.PreferencesPage):
         self.battery_label.set_label(f"{state.battery} %")
         self.battery_row.set_subtitle("Wird geladen" if state.charging else "")
         self.mix_bar.set_value(state.mix)
+        self.mix_label.set_label(balance_text(state.mix))

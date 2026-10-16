@@ -6,7 +6,7 @@ import sys
 
 from . import protocol as p
 from .device import A50
-from .transport import DeviceNotFound, DevicePermissionError, Transport, find_devices
+from .transport import DeviceBusy, DeviceNotFound, DevicePermissionError, Transport, find_devices
 
 NOISE_GATE_NAMES = {m.name.lower(): m for m in p.NoiseGate}
 MIC_EQ_NAMES = {m.name.lower(): m for m in p.MicEq}
@@ -23,7 +23,7 @@ def print_status(dev: A50) -> None:
     s = dev.read_all()
     print(f"Base station : FW {s.tx.version} (built {s.tx.build_date}), DSP {s.tx_dsp}")
     print(f"Battery      : {s.battery}%{' (charging)' if s.charging else ''}")
-    print(f"Game/Voice   : {s.mix}/255   default {s.live.balance}/255")
+    print(f"Game/Voice   : {s.mix}/255   default {s.live.balance}/255   (255 = all game)")
     print(f"Unsaved      : {'yes' if s.dirty else 'no'}")
     for i, preset in enumerate(s.live.presets):
         mark = "*" if i == s.active_preset else " "
@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     except DevicePermissionError as exc:
         print(f"{exc}. Install data/70-astro-a50.rules (see README).", file=sys.stderr)
         return 2
-    except DeviceNotFound as exc:
+    except (DeviceNotFound, DeviceBusy) as exc:
         print(exc, file=sys.stderr)
         return 1
     try:

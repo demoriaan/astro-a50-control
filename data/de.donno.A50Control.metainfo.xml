@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.donno.A50Control</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>A50 Control</name>
+  <summary>Settings for the ASTRO A50 Gen 4 wireless headset</summary>
+  <description>
+    <p>Unofficial Linux replacement for the Windows-only configuration software of the
+       ASTRO A50 (Gen 4) base station: 5-band equalizer with three presets, noise gate,
+       microphone EQ and level, sidetone, stream port mix, default balance, alert volume,
+       LED brightness and auto power-off.</p>
+    <p>Not affiliated with ASTRO Gaming or Logitech.</p>
+  </description>
+  <developer id="de.donno">
+    <name>A50 Control contributors</name>
+  </developer>
+  <launchable type="desktop-id">de.donno.A50Control.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-16"/>
+  </releases>
+</component>

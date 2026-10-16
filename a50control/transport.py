@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import fcntl
 import os
 import select
 import threading
@@ -21,6 +22,10 @@ class DevicePermissionError(Exception):
     def __init__(self, path: str):
         super().__init__(f"no permission to open {path}")
         self.path = path
+
+
+class DeviceBusy(Exception):
+    """Another process (e.g. the GUI) already talks to the base station."""
 
 
 class DeviceGone(Exception):
@@ -73,6 +78,13 @@ class Transport:
             raise DevicePermissionError(path) from exc
         except FileNotFoundError as exc:
             raise DeviceNotFound(path) from exc
+        try:
+            # Every open hidraw fd receives every input report, so a second
+            # client would see (and could mistake) our responses. Stay exclusive.
+            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            os.close(self.fd)
+            raise DeviceBusy(f"{path} is in use by another A50 Control instance") from exc
         self.path = path
         self._seq = 0
         self._lock = threading.Lock()

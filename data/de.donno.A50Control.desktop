@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=A50 Control
+GenericName=Headset Settings
+GenericName[de]=Headset-Einstellungen
+Comment=Equalizer, microphone and stream mix for the ASTRO A50 Gen 4
+Comment[de]=Equalizer, Mikrofon und Stream-Mix für das ASTRO A50 Gen 4
+Exec=a50control
+Icon=de.donno.A50Control
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=astro;a50;headset;equalizer;eq;microphone;sidetone;
+StartupNotify=true
