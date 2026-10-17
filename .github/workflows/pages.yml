@@ -42,9 +42,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Assemble site (app files only, no dev/test)
+        # Modules go into a per-commit directory so a cached index.html never mixes
+        # module versions after an update (Pages caches files for 10 minutes).
         run: |
+          set -eu
+          rev="${GITHUB_SHA::12}"
           mkdir _site
-          cp -r web/index.html web/styles.css web/favicon.svg web/site.webmanifest web/.nojekyll web/fonts web/js _site/
+          cp -r web/index.html web/styles.css web/favicon.svg web/site.webmanifest web/.nojekyll web/fonts _site/
+          cp -r web/js "_site/js-$rev"
+          sed -i "s|\./js/app\.js|./js-$rev/app.js|; s|\./styles\.css|./styles.css?v=$rev|" _site/index.html
+          grep -q "js-$rev/app.js" _site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

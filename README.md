@@ -10,6 +10,8 @@ rekonstruiert und am echten Gerät geprüft (Details: [docs/PROTOCOL.md](docs/PR
 (WebHID, Chrome/Edge/Brave/Opera am Desktop; unter Linux wird ebenfalls die udev-Regel gebraucht).
 Ohne Headset ausprobieren: <https://demoriaan.github.io/astro-a50-control/?demo>
 
+![Web-App](docs/screenshot-web.png)
+
 ## Funktionen
 
 * **Equalizer** – 3 Preset-Slots, 5 Bänder (Bass-Shelf, 3 Glocken, Höhen-Shelf) mit Pegel
