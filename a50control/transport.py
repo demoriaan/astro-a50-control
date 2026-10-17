@@ -36,9 +36,11 @@ class ForeignTraffic(Exception):
     """Reports nobody asked for: another program (e.g. a browser tab) talks to the station."""
 
 
-# The base station never sends unsolicited reports; two strays within this window mean
-# another client shares the device (flock cannot stop WebHID or other OSes' tools).
+# The base station answers requests and has not been seen sending unsolicited reports; three
+# strays within this window mean another client shares the device (flock cannot stop WebHID),
+# while a single unexpected report never interrupts.
 FOREIGN_WINDOW = 5.0
+FOREIGN_THRESHOLD = 3
 
 
 class Timeout(Exception):
@@ -98,6 +100,7 @@ class Transport:
         self._seq = 0
         self._lock = threading.Lock()
         self._strays: list[float] = []
+        self._expired: list[tuple[int, float]] = []  # (seq, time) of requests that timed out
 
     def close(self) -> None:
         with self._lock:
@@ -114,16 +117,24 @@ class Transport:
         except OSError as exc:
             raise DeviceGone(str(exc)) from exc
 
-    def _stray(self) -> None:
+    def _stray(self, report: bytes) -> None:
+        if not report or report[0] != p.REPORT_ID:
+            return  # the vendor interface only carries report ID 2
         now = time.monotonic()
+        self._expired = [(s, t) for s, t in self._expired if now - t < FOREIGN_WINDOW]
+        seq = p.response_seq(report)
+        for i, (s, _t) in enumerate(self._expired):
+            if s == seq:
+                del self._expired[i]  # our own answer, just too late
+                return
         self._strays = [t for t in self._strays if now - t < FOREIGN_WINDOW] + [now]
-        if len(self._strays) >= 2:
+        if len(self._strays) >= FOREIGN_THRESHOLD:
             self._strays.clear()
             raise ForeignTraffic("another program is talking to the base station")
 
     def _drain(self) -> None:
-        while self._read(0) is not None:
-            self._stray()
+        while (report := self._read(0)) is not None:
+            self._stray(report)
 
     def transact(self, cmd: int, payload: bytes = b"", timeout: float = 1.0, retries: int = 1) -> bytes:
         """Send one command and return the data bytes of its response."""
@@ -147,5 +158,6 @@ class Transport:
                         break
                     if report[0] == p.REPORT_ID and p.response_seq(report) == seq:
                         return p.decode_response(cmd, report)
-                    self._stray()
+                    self._stray(report)
+                self._expired.append((seq, time.monotonic()))
             raise Timeout(f"no response to command 0x{cmd:02x}")

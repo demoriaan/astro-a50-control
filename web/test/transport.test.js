@@ -59,15 +59,26 @@ test("times out without retries left", async () => {
   await assert.rejects(t.transact(0x7c, [], { timeout: 20, retries: 0 }), { name: "TimeoutError" });
 });
 
-test("reports foreign traffic after two stray reports", async () => {
+test("reports foreign traffic after three stray reports", async () => {
   let foreign = 0;
   const hid = new FakeHid(ok);
   const t = new WebHidTransport(hid, { onForeign: () => foreign++ });
   await t.transact(0x7c);
   hid.emit([0x02, 0x01, 0x55]);
+  hid.emit([0x02, 0x41, 0x55]);
   assert.equal(foreign, 0);
-  hid.emit([0x02, 0x01, 0x55]);
+  hid.emit([0x02, 0x81, 0x55]);
   assert.equal(foreign, 1);
+});
+
+test("late replies to our own timed-out requests are not foreign", async () => {
+  let foreign = 0;
+  const hid = new FakeHid(() => null);
+  const t = new WebHidTransport(hid, { onForeign: () => foreign++ });
+  await assert.rejects(t.transact(0x62, [5, 0], { timeout: 10, retries: 1 }), { name: "TimeoutError" });
+  hid.emit([0x02, 0x00 | 1, 0x62]); // late answer to seq 0
+  hid.emit([0x02, 0x40 | 1, 0x62]); // late answer to seq 1
+  assert.equal(foreign, 0);
 });
 
 test("close rejects a pending request without unhandled rejections", async () => {

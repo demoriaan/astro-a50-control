@@ -70,11 +70,22 @@ class TransportTests(unittest.TestCase):
     def test_two_stray_reports_mean_foreign_traffic(self):
         from a50control.transport import ForeignTraffic, Transport
         t = Transport.__new__(Transport)  # no device needed for the bookkeeping
-        t._strays = []
-        t._stray()
+        t._strays, t._expired = [], []
+        t._stray(bytes([2, 2, 0x01]))
+        t._stray(bytes([2, 2, 0x81]))
         with self.assertRaises(ForeignTraffic):
-            t._stray()
-        t._stray()  # counter starts over after reporting
+            t._stray(bytes([2, 2, 0x41]))
+        t._stray(bytes([2, 2, 0x01]))  # counter starts over after reporting
+        t._stray(bytes([1, 0, 0]))  # other report IDs are not ours to judge
+
+    def test_late_own_replies_are_not_foreign(self):
+        import time as _t
+        from a50control.transport import Transport
+        t = Transport.__new__(Transport)
+        t._strays, t._expired = [], [(0, _t.monotonic()), (1, _t.monotonic())]
+        t._stray(bytes([2, 2, 0x01]))  # late answer to seq 0
+        t._stray(bytes([2, 2, 0x41]))  # late answer to seq 1
+        self.assertEqual(t._strays, [])
 
 
 class WorkerTests(unittest.TestCase):

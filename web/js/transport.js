@@ -11,9 +11,12 @@ export class ForeignTrafficError extends Error {
   name = "ForeignTrafficError";
 }
 
-// The base station never sends unsolicited reports, so reports nobody waits for come from
-// another program (second tab, desktop app) talking to it. Two within this window = shared.
+// The base station answers requests and has not been seen sending unsolicited reports, so
+// reports nobody waits for come from another program (second tab, desktop app). A second
+// client's poll produces several per cycle; three within this window mean the device is shared,
+// while a single unexpected report (e.g. an unobserved button event) never disconnects.
 const FOREIGN_WINDOW_MS = 5000;
+const FOREIGN_THRESHOLD = 3;
 
 export const DEVICE_FILTERS = [{ vendorId: VENDOR_ID, productId: PRODUCT_ID, usagePage: USAGE_PAGE }];
 
@@ -43,6 +46,7 @@ export class WebHidTransport {
     this.closed = false;
     this.onForeign = onForeign;
     this.strays = [];
+    this.expired = []; // {seq, at}: requests that timed out and may still be answered late
     this.onReport = (event) => this.handleReport(event);
     device.addEventListener("inputreport", this.onReport);
   }
@@ -71,9 +75,15 @@ export class WebHidTransport {
       return;
     }
     const now = performance.now();
+    this.expired = this.expired.filter((e) => now - e.at < FOREIGN_WINDOW_MS);
+    const late = this.expired.findIndex((e) => e.seq === responseSeq(report));
+    if (late >= 0) {
+      this.expired.splice(late, 1); // our own answer, just too late
+      return;
+    }
     this.strays = this.strays.filter((t) => now - t < FOREIGN_WINDOW_MS);
     this.strays.push(now);
-    if (this.strays.length >= 2 && this.onForeign) this.onForeign();
+    if (this.strays.length >= FOREIGN_THRESHOLD && this.onForeign) this.onForeign();
   }
 
   /** Send one command; resolves with the response data bytes. */
@@ -104,6 +114,7 @@ export class WebHidTransport {
         const expired = new Promise((resolve) => { timer = setTimeout(() => resolve(null), timeout); });
         const report = await Promise.race([reply, expired]);
         if (report) return decodeResponse(cmd, report);
+        this.expired.push({ seq, at: performance.now() });
       } finally {
         clearTimeout(timer);
         this.pending = null;

@@ -24,8 +24,9 @@ This document only covers what the tested device accepts.
   little-endian u32 code plus a NUL-terminated string, e.g. `01000000 "HID_ERROR_UNHANDLED_PACKET"`,
   `01000001 "HID_ERROR_SLAVE_TIMEOUT"`.
 * Every open hidraw descriptor receives every input report. Two clients therefore see
-  each other's responses (observed: a status read picked up another process' answer).
-  The app takes an exclusive `flock` on the node.
+  each other's responses (observed twice: a status read picked up another process' answer, and a
+  passive reader saw every answer to a browser tab's polls). The desktop app takes an exclusive
+  `flock`; since WebHID ignores it, both apps also stop when reports arrive that nobody asked for.
 * Most setters echo `[cmd, first params…]` (ACC retries up to 5 times until the echo
   matches, `FUN_00490690`).
 
@@ -101,4 +102,6 @@ payload instead – same bytes on the wire), and its balance direction is revers
 
 * Firmware update (`0x83` data chunks, DFU reset) – deliberately not implemented.
 * Europa variant (12-byte noise gate blob, `0x6b` default mode, `0x65` set default mode).
-* Unsolicited input reports: none observed during testing; ACC polls.
+* Unsolicited input reports: none in a 3-minute passive capture (only answers to another client's
+  polls); button events (EQ, balance, mute, dock, power) were not exercised during it. ACC and
+  eh-fifty both poll. The apps treat 3 unexpected reports within 5 s as a second client.

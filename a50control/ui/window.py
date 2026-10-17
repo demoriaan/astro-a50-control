@@ -189,6 +189,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_connected(self, state, dev, path: str) -> None:
         self._connecting = False
+        self._paused = False
         if dev is not self.worker.device:
             return  # dropped again before this callback ran (e.g. the first poll failed)
         self.node = path

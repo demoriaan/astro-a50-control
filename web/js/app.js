@@ -19,6 +19,7 @@ const $ = (id) => document.getElementById(id);
 const app = {
   dev: null, hid: null, state: null, queue: new JobQueue(),
   connecting: false, writes: 0, saving: false, pollFailures: 0, presetGen: 0, selected: 0, releaseLock: null,
+  closing: null,
 };
 
 // -- feedback ---------------------------------------------------------------
@@ -48,26 +49,42 @@ function errorText(err) {
 
 /** Hold an exclusive Web Lock while connected so a second tab of this browser cannot connect. */
 function acquireLock() {
-  if (DEMO || !navigator.locks) return Promise.resolve(() => {});
+  const noLock = () => {};
+  if (DEMO || !navigator.locks) return Promise.resolve(noLock);
   return new Promise((resolve) => {
+    // Rejected when site storage is blocked; then rely on the stray-report detection alone.
     navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) => {
       if (!lock) {
         resolve(null);
         return undefined;
       }
       return new Promise((release) => resolve(release));
-    });
+    }).catch(() => resolve(noLock));
   });
 }
+
+/** True if another tab of this browser holds the device. */
+async function lockedElsewhere() {
+  if (DEMO || !navigator.locks || app.dev || app.closing) return false;
+  try {
+    const { held } = await navigator.locks.query();
+    return held.some((l) => l.name === LOCK_NAME);
+  } catch {
+    return false;
+  }
+}
+
+const TAB_MESSAGE = "Die Basisstation ist bereits in einem anderen Tab verbunden. Schließe den anderen Tab oder trenne ihn dort.";
 
 async function connect(device) {
   if (app.connecting || app.dev || !device) return;
   app.connecting = true;
   $("connect").disabled = true;
   showMessage(null);
+  if (app.closing) await app.closing; // our own previous connection must be fully closed
   const release = await acquireLock();
   if (!release) {
-    showMessage("Die Basisstation ist bereits in einem anderen Tab verbunden. Schließe den anderen Tab oder trenne ihn dort.");
+    showMessage(TAB_MESSAGE);
     app.connecting = false;
     $("connect").disabled = false;
     return;
@@ -102,9 +119,9 @@ async function connect(device) {
     renderAll({ cancelDrag: true });
     toast(DEMO ? "Demo: simulierte Basisstation" : "Basisstation verbunden");
   } catch (err) {
-    release();
     await dev.close();
-    showMessage(err?.name === "ForeignTrafficError" ? FOREIGN_MESSAGE
+    release();
+    showMessage(foreign || err?.name === "ForeignTrafficError" ? FOREIGN_MESSAGE
       : `${errorText(err)} Schließe andere Programme, die mit der Basisstation sprechen, und versuche es erneut.`);
   } finally {
     app.connecting = false;
@@ -122,8 +139,12 @@ async function disconnect(message) {
   app.queue.clear();
   showApp(false);
   showMessage(message);
-  if (dev) await dev.close();
-  if (release) release();
+  app.closing = (async () => {
+    if (dev) await dev.close();
+    if (release) release();
+  })();
+  await app.closing;
+  app.closing = null;
 }
 
 function onForeignTraffic(dev) {
@@ -466,6 +487,10 @@ function init() {
     return;
   }
   $("connect").addEventListener("click", async () => {
+    if (await lockedElsewhere()) {
+      showMessage(TAB_MESSAGE);
+      return;
+    }
     try {
       await connect(await requestDevice());
     } catch (err) {
