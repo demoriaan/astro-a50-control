@@ -1,6 +1,7 @@
 // DOM builders for the settings panels. Every control reports user edits through a
 // callback and exposes set() for programmatic updates that must not echo back.
 import { BAND_COLORS } from "./eq-graph.js";
+import { t } from "./i18n.js";
 import * as p from "./protocol.js";
 
 export function el(tag, attrs = {}, ...children) {
@@ -73,30 +74,31 @@ export const balanceText = (v) => {
   return `${100 - game}:${game}`;
 };
 
+// Mode names are the ones printed on the headset and used by ASTRO; only descriptions are translated.
 const NOISE_GATE = [
-  [p.NoiseGate.STREAMING, "Streaming", "Schwächste Stufe. Natürlichster Klang, lässt Umgebungsgeräusche durch – für ruhige Studio- und Heim-Umgebungen."],
-  [p.NoiseGate.NIGHT, "Night", "Sehr leichtes Gate für leises, natürliches Sprechen – ideal für späte Sessions."],
-  [p.NoiseGate.HOME, "Home", "ASTRO-Standard. Für kleine LANs und typische Wohnumgebungen, entfernt die meisten leichten Hintergrundgeräusche."],
-  [p.NoiseGate.TOURNAMENT, "Tournament", "Aggressivste Stufe für laute Bühnen. Am wenigsten natürlich und gated zusätzlich den Sidetone."],
+  [p.NoiseGate.STREAMING, "Streaming", "gateStreaming"],
+  [p.NoiseGate.NIGHT, "Night", "gateNight"],
+  [p.NoiseGate.HOME, "Home", "gateHome"],
+  [p.NoiseGate.TOURNAMENT, "Tournament", "gateTournament"],
 ];
 const MIC_EQ = [
-  [p.MicEq.BRIGHT, "Bright", "Hell, mit betonten Höhen"],
-  [p.MicEq.AIRY, "Airy", "Offen und luftig"],
-  [p.MicEq.WARM, "Warm", "Voller, mit mehr Tiefen"],
+  [p.MicEq.BRIGHT, "Bright", "micBright"],
+  [p.MicEq.AIRY, "Airy", "micAiry"],
+  [p.MicEq.WARM, "Warm", "micWarm"],
 ];
-const toOptions = (list) => list.map(([value, title, desc]) => ({ value, title, desc }));
+const toOptions = (list) => list.map(([value, title, desc]) => ({ value, title, desc: t(desc) }));
 
 export function buildMicPanel(panel, act) {
-  const level = rangeRow({ title: "USB-Mikrofonpegel", desc: "Lautstärke deines Mikrofons am PC (USB)", min: 0, max: p.SLIDER_MAX,
+  const level = rangeRow({ title: t("micLevel"), desc: t("micLevelDesc"), min: 0, max: p.SLIDER_MAX,
     onChange: (v) => act.slider(p.Slider.MIC_LEVEL, v) });
-  const sidetone = rangeRow({ title: "Sidetone", desc: "Wie laut du dich selbst im Headset hörst", min: 0, max: p.SLIDER_MAX,
+  const sidetone = rangeRow({ title: t("sidetone"), desc: t("sidetoneDesc"), min: 0, max: p.SLIDER_MAX,
     onChange: (v) => act.slider(p.Slider.SIDETONE, v) });
-  const gate = choiceGroup({ name: "noise-gate", label: "Noise Gate", options: toOptions(NOISE_GATE), onChange: act.noiseGate });
-  const eq = choiceGroup({ name: "mic-eq", label: "Mikrofon-EQ", options: toOptions(MIC_EQ), onChange: act.micEq });
+  const gate = choiceGroup({ name: "noise-gate", label: t("noiseGate"), options: toOptions(NOISE_GATE), onChange: act.noiseGate });
+  const eq = choiceGroup({ name: "mic-eq", label: t("micEq"), options: toOptions(MIC_EQ), onChange: act.micEq });
   panel.append(
-    group("Pegel", null, el("div", { class: "rows" }, level.row, sidetone.row)),
-    group("Noise Gate", "Wie laut du sprechen musst, damit das Mikrofon öffnet.", gate.rows),
-    group("Mikrofon-EQ", "Klangcharakter deines Mikrofons.", eq.rows),
+    group(t("levels"), null, el("div", { class: "rows" }, level.row, sidetone.row)),
+    group(t("noiseGate"), t("noiseGateDesc"), gate.rows),
+    group(t("micEq"), t("micEqDesc"), eq.rows),
   );
   return (s) => {
     level.set(s.live.sliders[p.Slider.MIC_LEVEL] ?? 0);
@@ -108,14 +110,13 @@ export function buildMicPanel(panel, act) {
 
 export function buildStreamPanel(panel, act) {
   const rows = [
-    [p.Slider.STREAM_GAME, "Spiel", "Ausgehender Spiel-Sound"],
-    [p.Slider.STREAM_CHAT, "Chat", "Ausgehender Voice-Chat"],
-    [p.Slider.STREAM_MIC, "Mikrofon", "Dein Headset-Mikrofon im Stream"],
-    [p.Slider.STREAM_AUX, "AUX-Eingang", "Signal vom AUX-Eingang der Basisstation"],
-  ].map(([slider, title, desc]) => [slider, rangeRow({ title, desc, min: 0, max: p.SLIDER_MAX, onChange: (v) => act.slider(slider, v) })]);
-  panel.append(group("Stream-Port",
-    "Mischung am Stream-Ausgang der Basisstation, zum Beispiel zum Streaming-PC oder zur Capture-Karte. Ändert nicht, was du im Headset hörst.",
-    el("div", { class: "rows" }, ...rows.map(([, r]) => r.row))));
+    [p.Slider.STREAM_GAME, "streamGame"],
+    [p.Slider.STREAM_CHAT, "streamChat"],
+    [p.Slider.STREAM_MIC, "streamMic"],
+    [p.Slider.STREAM_AUX, "streamAux"],
+  ].map(([slider, key]) => [slider, rangeRow({ title: t(key), desc: t(`${key}Desc`), min: 0, max: p.SLIDER_MAX,
+    onChange: (v) => act.slider(slider, v) })]);
+  panel.append(group(t("streamPort"), t("streamPortDesc"), el("div", { class: "rows" }, ...rows.map(([, r]) => r.row))));
   return (s) => rows.forEach(([slider, r]) => r.set(s.live.sliders[slider] ?? 0));
 }
 
@@ -129,37 +130,38 @@ export function buildDevicePanel(panel, act) {
     el("div", { class: "what" }, el("span", { text: title }), desc),
     el("div", { class: "control" }, ends ? el("span", { class: "end", text: ends[0] }) : null,
       el("div", { class: "meter" }, fill), ends ? el("span", { class: "end", text: ends[1] }) : null, out));
-  const balance = rangeRow({ title: "Standard-Balance", desc: "Chat/Spiel-Verhältnis beim Einschalten", min: 0, max: p.BALANCE_MAX,
-    format: balanceText, ends: ["Chat", "Spiel"], onChange: act.balance });
-  const alert = rangeRow({ title: "Hinweistöne", desc: "Lautstärke der Signal- und Ansagetöne", min: 0, max: p.ALERT_MAX,
+  const ends = [t("chat"), t("game")];
+  const balance = rangeRow({ title: t("defaultBalance"), desc: t("defaultBalanceDesc"), min: 0, max: p.BALANCE_MAX,
+    format: balanceText, ends, onChange: act.balance });
+  const alert = rangeRow({ title: t("alertTones"), desc: t("alertTonesDesc"), min: 0, max: p.ALERT_MAX,
     format: (v) => `${v} %`, onChange: act.alertVolume });
-  const brightness = rangeRow({ title: "LED-Helligkeit", desc: "Beleuchtung der Basisstation", min: p.BRIGHTNESS_MIN,
+  const brightness = rangeRow({ title: t("ledBrightness"), desc: t("ledBrightnessDesc"), min: p.BRIGHTNESS_MIN,
     max: p.BRIGHTNESS_MAX, onChange: act.brightness });
   const autoOffId = nextId("select");
   const autoOff = el("select", { id: autoOffId, onchange: (e) => act.autoOff(Number(e.target.value)) },
-    ...p.AUTO_OFF_MINUTES.map((m, i) => el("option", { value: i, text: `Nach ${m} Minuten` })));
+    ...p.AUTO_OFF_MINUTES.map((m, i) => el("option", { value: i, text: t("afterMinutes", { minutes: m }) })));
   const facts = { base: el("dd"), build: el("dd"), headset: el("dd") };
   panel.append(
-    group("Status", null, el("div", { class: "rows" },
-      meterRow("Akku", batteryDesc, battery, batteryText),
-      meterRow("Aktuelle Chat/Spiel-Balance", el("p", { text: "Wird an den Balance-Tasten des Headsets eingestellt" }), mix, mixText, ["Chat", "Spiel"]))),
-    group("Einstellungen", null, el("div", { class: "rows" }, balance.row, alert.row, brightness.row,
+    group(t("status"), null, el("div", { class: "rows" },
+      meterRow(t("battery"), batteryDesc, battery, batteryText),
+      meterRow(t("currentBalance"), el("p", { text: t("currentBalanceDesc") }), mix, mixText, ends))),
+    group(t("settings"), null, el("div", { class: "rows" }, balance.row, alert.row, brightness.row,
       el("div", { class: "setting" },
-        el("div", { class: "what" }, el("label", { for: autoOffId, text: "Automatisch ausschalten" }),
-          el("p", { text: "Wenn das Headset nicht bewegt wird" })),
+        el("div", { class: "what" }, el("label", { for: autoOffId, text: t("autoOff") }),
+          el("p", { text: t("autoOffDesc") })),
         el("div", { class: "control" }, autoOff)))),
-    group("Firmware", null, el("div", { class: "rows" }, el("dl", { class: "facts" },
-      el("dt", { text: "Basisstation" }), facts.base, el("dt", { text: "Build-Datum" }), facts.build,
-      el("dt", { text: "Headset" }), facts.headset))),
+    group(t("firmware"), null, el("div", { class: "rows" }, el("dl", { class: "facts" },
+      el("dt", { text: t("baseStation") }), facts.base, el("dt", { text: t("buildDate") }), facts.build,
+      el("dt", { text: t("headset") }), facts.headset))),
   );
   const status = (s) => {
     battery.style.width = `${s.battery}%`;
     batteryText.textContent = `${s.battery} %`;
-    batteryDesc.textContent = !s.headsetOn ? "Headset ausgeschaltet – Wert vom letzten Kontakt"
-      : [s.docked ? "In der Ladeschale" : "Headset an", s.charging ? "lädt" : null].filter(Boolean).join(", ");
+    batteryDesc.textContent = !s.headsetOn ? t("batteryOffDesc")
+      : [s.docked ? t("inDock") : t("headsetOn"), s.charging ? t("charging") : null].filter(Boolean).join(", ");
     mix.style.width = `${(s.mix * 100) / p.BALANCE_MAX}%`;
     mixText.textContent = balanceText(s.mix);
-    facts.headset.textContent = s.headsetVersion || "unbekannt (Headset aus)";
+    facts.headset.textContent = s.headsetVersion || t(s.headsetOn ? "versionUnknown" : "versionUnknownOff");
   };
   return {
     status,
@@ -177,24 +179,23 @@ export function buildDevicePanel(panel, act) {
   };
 }
 
-const BAND_TITLES = ["Bass", "Band 2", "Band 3", "Band 4", "Höhen"];
-const BAND_KINDS = ["Low-Shelf", "Glocke", "Glocke", "Glocke", "High-Shelf"];
-
 /** Five band columns; onEdit(index, {gain|freq|bandwidth}), onSelect(index). */
 export function buildBands(container, { onEdit, onSelect }) {
-  const cols = BAND_TITLES.map((title, i) => {
-    const gain = el("input", { type: "range", min: p.GAIN_MIN, max: p.GAIN_MAX, step: 1, "aria-label": `${title} Pegel` });
+  const titles = [t("bandBass"), t("bandN", { n: 2 }), t("bandN", { n: 3 }), t("bandN", { n: 4 }), t("bandTreble")];
+  const kinds = [t("kindLowShelf"), t("kindPeak"), t("kindPeak"), t("kindPeak"), t("kindHighShelf")];
+  const cols = titles.map((title, i) => {
+    const gain = el("input", { type: "range", min: p.GAIN_MIN, max: p.GAIN_MAX, step: 1, "aria-label": t("gainOf", { band: title }) });
     const out = el("output");
-    const freq = el("input", { type: "number", min: p.FREQ_MIN, max: p.FREQ_MAX, step: 1, "aria-label": `${title} Frequenz` });
+    const freq = el("input", { type: "number", min: p.FREQ_MIN, max: p.FREQ_MAX, step: 1, "aria-label": t("freqOf", { band: title }) });
     const peaking = p.PEAKING_BANDS.includes(i);
     const bw = el("input", { type: "number", min: p.BW_MIN, max: p.BW_MAX, step: 0.1, disabled: !peaking,
-      placeholder: peaking ? null : "fest", "aria-label": `${title} Bandbreite` });
+      placeholder: peaking ? null : t("fixed"), "aria-label": t("bwOf", { band: title }) });
     gain.addEventListener("input", () => onEdit(i, { gain: Number(gain.value) }));
     freq.addEventListener("change", () => onEdit(i, { freq: Math.round(clampInput(freq)) }));
     bw.addEventListener("change", () => onEdit(i, { bandwidth: Math.round(clampInput(bw) * 10) / 10 }));
     const col = el("div", { class: "band" },
-      el("h3", { text: title }), el("span", { class: "kind", text: BAND_KINDS[i] }), out, gain,
-      el("label", {}, "Frequenz (Hz)", freq), el("label", {}, "Bandbreite", bw));
+      el("h3", { text: title }), el("span", { class: "kind", text: kinds[i] }), out, gain,
+      el("label", {}, t("frequencyHz"), freq), el("label", {}, t("bandwidth"), bw));
     col.style.setProperty("--band", BAND_COLORS[i]); // CSSOM, allowed by the strict CSP
     col.addEventListener("focusin", () => onSelect(i));
     col.addEventListener("pointerdown", () => onSelect(i));

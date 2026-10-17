@@ -1,4 +1,5 @@
 // EQ preset library: ASTRO factory presets and .ini import/export (ASTRO Command Center format).
+import { t } from "./i18n.js";
 import * as p from "./protocol.js";
 
 // [gains, centre frequencies, bandwidths of bands 2-4] of the ASTRO factory presets.
@@ -38,10 +39,10 @@ export function parseIni(text, fallbackName = "Import") {
     }
   }
   const eq = sections.get("Eq_Bands");
-  if (!eq) throw new Error("keine [Eq_Bands]-Sektion gefunden");
+  if (!eq) throw new Error(t("iniNoEq"));
   const num = (key, fallback) => {
     const v = Number(eq.get(key) ?? fallback);
-    if (!Number.isFinite(v)) throw new Error(`ungültiger Wert für ${key}`);
+    if (!Number.isFinite(v)) throw new Error(t("iniBadValue", { key }));
     return v;
   };
   const bands = [];

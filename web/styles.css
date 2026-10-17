@@ -88,8 +88,8 @@ select, input[type="text"], input[type="number"], input:not([type]) {
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 0.6rem; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 1.2rem; }
-.status { display: flex; gap: 0.5rem; margin-left: auto; }
+.brand { display: flex; align-items: center; gap: 0.6rem; margin-right: auto; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 1.2rem; }
+.status { display: flex; gap: 0.5rem; }
 .actions { display: flex; gap: 0.5rem; }
 .chip {
   display: inline-flex; align-items: center; gap: 0.45rem;
@@ -228,7 +228,6 @@ dl.facts dt:not(:first-of-type), dl.facts dt:not(:first-of-type) + dd { border-t
 
 @media (max-width: 720px) {
   .setting { grid-template-columns: 1fr; }
-  .status { margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

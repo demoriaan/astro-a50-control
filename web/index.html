@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>A50 Control – ASTRO A50 im Browser einstellen</title>
-  <meta name="description" content="Inoffizielles WebHID-Werkzeug für das ASTRO A50 (Gen 4): Equalizer, Mikrofon, Stream-Mix und Basisstation direkt im Browser einstellen.">
+  <title data-i18n="title">A50 Control – Set up your ASTRO A50 in the browser</title>
+  <meta name="description" data-i18n-attr="content:description" content="Unofficial WebHID tool for the ASTRO A50 (Gen 4): set up equalizer, microphone, stream mix and base station right in the browser.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#1c2130">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -23,70 +23,71 @@
       <span class="chip battery" id="battery-chip"><span class="cell" aria-hidden="true"><span id="battery-fill"></span></span><span id="battery-text"></span></span>
     </div>
     <div class="actions" id="actions" hidden>
-      <button type="button" class="ghost" id="revert" disabled>Verwerfen</button>
-      <button type="button" class="primary" id="save" disabled>Speichern</button>
+      <button type="button" class="ghost" id="revert" data-i18n="revert" disabled>Revert</button>
+      <button type="button" class="primary" id="save" data-i18n="save" disabled>Save</button>
     </div>
+    <button type="button" class="ghost small lang" id="lang" lang="de" data-i18n="langSwitch" data-i18n-attr="lang:langSwitchCode">Deutsch</button>
   </header>
 
   <main>
     <section class="welcome" id="welcome">
       <div class="intro">
-      <h1>Dein ASTRO A50 im Browser einstellen</h1>
-      <p class="lead">Equalizer, Mikrofon, Stream-Mix und Basisstation – direkt über USB, ohne Installation. Änderungen hörst du sofort, „Speichern“ legt sie dauerhaft im Headset ab.</p>
+      <h1 data-i18n="heroTitle">Set up your ASTRO A50 in the browser</h1>
+      <p class="lead" data-i18n="heroLead">Equalizer, microphone, stream mix and base station – straight over USB, nothing to install. You hear changes immediately; “Save” stores them on the headset.</p>
       <div class="cta">
-        <button type="button" class="primary big" id="connect">Basisstation verbinden</button>
-        <a href="./?demo">Ohne Headset ansehen</a>
+        <button type="button" class="primary big" id="connect" data-i18n="connect">Connect base station</button>
+        <a href="./?demo" data-i18n="tryDemo">Try without a headset</a>
       </div>
       <p class="message" id="connect-message" role="alert" hidden></p>
       </div>
       <figure class="preview" aria-hidden="true">
         <canvas id="welcome-canvas"></canvas>
-        <figcaption>Werks-Preset „ASTRO“</figcaption>
+        <figcaption data-i18n="previewCaption">Factory preset “ASTRO”</figcaption>
       </figure>
       <div class="requirements">
-        <h2>Was du brauchst</h2>
+        <h2 data-i18n="needTitle">What you need</h2>
         <ul>
-          <li>Einen Chromium-Browser am Desktop: Chrome, Edge, Brave oder Opera. Firefox und Safari unterstützen WebHID nicht.</li>
-          <li>Die A50-Basisstation (Gen 4) per USB am Rechner.</li>
-          <li>Kein anderes Programm, das gleichzeitig mit der Basisstation spricht: A50-Control-Desktop-App, ASTRO Command Center oder G HUB vorher schließen.</li>
-          <li>Unter Linux einmalig eine udev-Regel, damit der Browser auf das Gerät zugreifen darf:
+          <li data-i18n="needBrowser">A Chromium-based desktop browser such as Chrome, Edge or Opera – on Windows, macOS, Linux or ChromeOS. Firefox and Safari do not support WebHID.</li>
+          <li data-i18n="needBase">The A50 base station (Gen 4) connected to your computer via USB.</li>
+          <li data-i18n="needAlone">No other program talking to the base station at the same time: close the A50 Control desktop app, ASTRO Command Center or G HUB first.</li>
+          <li><span data-i18n="needUdev">On Linux, a one-time udev rule so the browser may access the device:</span>
             <pre id="udev-rule">echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="9886", ATTRS{idProduct}=="002c", MODE="0660", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-astro-a50.rules
 sudo udevadm control --reload &amp;&amp; sudo udevadm trigger --subsystem-match=hidraw</pre>
-            <button type="button" class="ghost small" id="copy-udev">Befehl kopieren</button>
+            <button type="button" class="ghost small" id="copy-udev" data-i18n="copyCommand">Copy command</button>
           </li>
         </ul>
       </div>
     </section>
 
     <section class="app" id="app" hidden>
-      <nav class="tabs" role="tablist" aria-label="Bereiche">
-        <button type="button" role="tab" id="tab-eq" aria-controls="panel-eq" aria-selected="true">Equalizer</button>
-        <button type="button" role="tab" id="tab-mic" aria-controls="panel-mic" aria-selected="false" tabindex="-1">Mikrofon</button>
-        <button type="button" role="tab" id="tab-stream" aria-controls="panel-stream" aria-selected="false" tabindex="-1">Stream-Port</button>
-        <button type="button" role="tab" id="tab-device" aria-controls="panel-device" aria-selected="false" tabindex="-1">Gerät</button>
+      <nav class="tabs" role="tablist" aria-label="Sections" data-i18n-attr="aria-label:sections">
+        <button type="button" role="tab" id="tab-eq" aria-controls="panel-eq" aria-selected="true" data-i18n="tabEq">Equalizer</button>
+        <button type="button" role="tab" id="tab-mic" aria-controls="panel-mic" aria-selected="false" tabindex="-1" data-i18n="tabMic">Microphone</button>
+        <button type="button" role="tab" id="tab-stream" aria-controls="panel-stream" aria-selected="false" tabindex="-1" data-i18n="tabStream">Stream port</button>
+        <button type="button" role="tab" id="tab-device" aria-controls="panel-device" aria-selected="false" tabindex="-1" data-i18n="tabDevice">Device</button>
       </nav>
 
       <div class="panel" id="panel-eq" role="tabpanel" aria-labelledby="tab-eq">
         <div class="eq-head">
-          <div class="slots" id="slots" role="radiogroup" aria-label="Aktives EQ-Preset"></div>
+          <div class="slots" id="slots" role="radiogroup" aria-label="Active EQ preset" data-i18n-attr="aria-label:activePreset"></div>
           <div class="library">
-            <label class="visually-hidden" for="factory">Werks-Preset laden</label>
-            <select id="factory"><option value="">Werks-Preset wählen …</option></select>
-            <button type="button" class="ghost" id="load-factory">Laden</button>
-            <button type="button" class="ghost" id="import">Importieren</button>
-            <button type="button" class="ghost" id="export">Exportieren</button>
+            <label class="visually-hidden" for="factory" data-i18n="factoryLabel">Load factory preset</label>
+            <select id="factory"><option value="" data-i18n="factoryChoose">Choose a factory preset …</option></select>
+            <button type="button" class="ghost" id="load-factory" data-i18n="load">Load</button>
+            <button type="button" class="ghost" id="import" data-i18n="import">Import</button>
+            <button type="button" class="ghost" id="export" data-i18n="export">Export</button>
             <input type="file" id="import-file" accept=".ini,.txt" hidden>
           </div>
         </div>
         <div class="graph">
-          <canvas id="eq-canvas" role="img" aria-label="EQ-Kurve des aktiven Presets"></canvas>
+          <canvas id="eq-canvas" role="img" aria-label="EQ curve of the active preset" data-i18n-attr="aria-label:eqCurve"></canvas>
         </div>
-        <p class="hint">Punkte ziehen ändert Pegel und Frequenz. Mausrad über einem Punkt ändert die Bandbreite der Bänder 2 bis 4.</p>
+        <p class="hint" data-i18n="eqHint">Drag the points to change gain and frequency. The mouse wheel over a point changes the bandwidth of bands 2 to 4.</p>
         <div class="bands" id="bands"></div>
         <form class="rename" id="rename-form">
-          <label for="preset-name">Name des Presets</label>
+          <label for="preset-name" data-i18n="presetName">Preset name</label>
           <input id="preset-name" maxlength="49" autocomplete="off" required>
-          <button type="submit" class="ghost">Umbenennen</button>
+          <button type="submit" class="ghost" data-i18n="rename">Rename</button>
         </form>
       </div>
 
@@ -97,8 +98,8 @@ sudo udevadm control --reload &amp;&amp; sudo udevadm trigger --subsystem-match=
   </main>
 
   <footer class="footer">
-    <p>Inoffizielles Werkzeug, nicht mit ASTRO Gaming oder Logitech verbunden. ASTRO und A50 dienen nur der Bezeichnung des kompatiblen Geräts. Die Seite sendet keine Daten ins Netz; sie spricht nur über WebHID mit deiner Basisstation.</p>
-    <p><a href="https://github.com/demoriaan/astro-a50-control">Quellcode, Desktop-App für Linux und Protokolldokumentation</a></p>
+    <p data-i18n="footerNote">Unofficial tool, not affiliated with ASTRO Gaming or Logitech. ASTRO and A50 only name the compatible device. This page sends no data over the network; it only talks to your base station via WebHID.</p>
+    <p><a href="https://github.com/demoriaan/astro-a50-control" data-i18n="footerLink">Source code, Linux desktop app and protocol documentation</a></p>
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

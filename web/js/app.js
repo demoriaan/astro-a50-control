@@ -1,6 +1,7 @@
 // Page controller: connection lifecycle, polling, coalesced writes and rendering.
 import { A50, clone, sameSettings } from "./device.js";
 import { EqGraph } from "./eq-graph.js";
+import { lang, setLang, t, translatePage } from "./i18n.js";
 import { buildBands, buildDevicePanel, buildMicPanel, buildStreamPanel, el } from "./panels.js";
 import { factoryPresets, parseIni, toIni } from "./presets.js";
 import * as p from "./protocol.js";
@@ -12,8 +13,6 @@ const DEMO = new URLSearchParams(location.search).has("demo");
 const POLL_MS = 2000;
 const POLL_FAILURES_BEFORE_RESET = 3;
 const LOCK_NAME = "a50-base-station";
-const FOREIGN_MESSAGE = "Ein anderes Programm spricht gleichzeitig mit der Basisstation (zweiter Tab, A50-Control-Desktop-App, "
-  + "G HUB oder ASTRO Command Center). Schließe es und verbinde neu – sonst können Antworten vertauscht werden.";
 const $ = (id) => document.getElementById(id);
 
 const app = {
@@ -33,16 +32,23 @@ function toast(text) {
   toastTimer = setTimeout(() => node.classList.remove("show"), 3200);
 }
 
+// Messages are kept as functions so a language switch can re-render the current one.
+let message = null;
 function showMessage(text) {
+  message = text;
+  renderMessage();
+}
+
+function renderMessage() {
   const node = $("connect-message");
-  node.hidden = !text;
-  node.textContent = text ?? "";
+  node.hidden = !message;
+  node.textContent = message ? message() : "";
 }
 
 function errorText(err) {
-  if (err?.name === "TimeoutError") return "Keine Antwort von der Basisstation.";
-  if (err?.name === "DeviceError") return `Die Basisstation meldet: ${err.deviceMessage}.`;
-  return `Fehler: ${err?.message ?? err}`;
+  if (err?.name === "TimeoutError") return t("noAnswer");
+  if (err?.name === "DeviceError") return t("deviceSays", { message: err.deviceMessage });
+  return t("error", { message: err?.message ?? err });
 }
 
 // -- connection -------------------------------------------------------------
@@ -74,7 +80,8 @@ async function lockedElsewhere() {
   }
 }
 
-const TAB_MESSAGE = "Die Basisstation ist bereits in einem anderen Tab verbunden. Schließe den anderen Tab oder trenne ihn dort.";
+const TAB_MESSAGE = () => t("otherTab");
+const FOREIGN_MESSAGE = () => t("foreignTraffic");
 
 async function connect(device) {
   if (app.connecting || app.dev || !device) return;
@@ -102,7 +109,7 @@ async function connect(device) {
     }
   } catch (err) {
     release();
-    showMessage(`Der Browser konnte die Basisstation nicht öffnen (${err.message}). Unter Linux fehlt meist die udev-Regel unten; ansonsten hält ein anderes Programm das Gerät.`);
+    showMessage(() => t("openFailed", { message: err.message }));
     app.connecting = false;
     $("connect").disabled = false;
     return;
@@ -117,12 +124,12 @@ async function connect(device) {
     app.pollFailures = 0;
     showApp(true);
     renderAll({ cancelDrag: true });
-    toast(DEMO ? "Demo: simulierte Basisstation" : "Basisstation verbunden");
+    toast(t(DEMO ? "connectedDemo" : "connected"));
   } catch (err) {
     await dev.close();
     release();
     showMessage(foreign || err?.name === "ForeignTrafficError" ? FOREIGN_MESSAGE
-      : `${errorText(err)} Schließe andere Programme, die mit der Basisstation sprechen, und versuche es erneut.`);
+      : () => t("retryHint", { error: errorText(err) }));
   } finally {
     app.connecting = false;
     $("connect").disabled = false;
@@ -170,7 +177,7 @@ function run(key, job) {
 function onWriteError(err, dev) {
   if (dev !== app.dev) return;
   if (err?.name === "DeviceGoneError") {
-    disconnect("Die Verbindung zur Basisstation ist abgebrochen.");
+    disconnect(() => t("connectionLost"));
     return;
   }
   toast(errorText(err));
@@ -180,26 +187,26 @@ function onWriteError(err, dev) {
 function onPollError(err, dev) {
   if (dev !== app.dev) return;
   if (err?.name === "DeviceGoneError") {
-    disconnect("Die Verbindung zur Basisstation ist abgebrochen.");
+    disconnect(() => t("connectionLost"));
   } else if (err?.name === "TimeoutError" && ++app.pollFailures >= POLL_FAILURES_BEFORE_RESET) {
-    disconnect("Die Basisstation antwortet nicht mehr. Steck sie neu ein und verbinde erneut.");
+    disconnect(() => t("notResponding"));
   }
 }
 
 /** Re-read everything; re-runs if an edit was queued meanwhile so it never shows stale values. */
-function resync(message) {
+function resync(done) {
   const dev = app.dev;
   if (!dev) return;
   const writes = app.writes;
   app.queue.submit("refresh", async () => clone(await dev.readAll())).then((state) => {
     if (!state || dev !== app.dev) return;
     if (writes !== app.writes) {
-      resync(message);
+      resync(done);
       return;
     }
     app.state = state;
     renderAll({ cancelDrag: true });
-    if (message) toast(message);
+    if (done) toast(done);
   }, (err) => onPollError(err, dev));
 }
 
@@ -230,7 +237,7 @@ function save() {
     app.saving = false;
     if (saved && dev === app.dev) {
       app.state.saved = saved;
-      toast("Im Headset gespeichert");
+      toast(t("savedToast"));
     }
     if (app.state) renderDirty();
   }, (err) => {
@@ -247,12 +254,12 @@ function revert() {
   app.queue.submit("revert", async () => { await dev.revert(); return clone(dev.state); }).then((state) => {
     if (!state || dev !== app.dev) return;
     if (writes !== app.writes) {
-      resync("Änderungen verworfen");
+      resync(t("reverted"));
       return;
     }
     app.state = state;
     renderAll({ cancelDrag: true });
-    toast("Änderungen verworfen");
+    toast(t("reverted"));
   }, (err) => onWriteError(err, dev));
 }
 
@@ -297,7 +304,7 @@ function applyPreset(preset) {
   run(`apply-${index}`, (d) => d.applyPreset(index, snapshot));
   renderEq({ cancelDrag: true });
   renderDirty();
-  toast(`„${next.name}“ geladen – zum Behalten speichern`);
+  toast(t("presetLoaded", { name: next.name }));
 }
 
 function setting(key, value, job) {
@@ -326,13 +333,25 @@ const graph = new EqGraph($("eq-canvas"), {
   onChange: (i, band) => editBand(i, band),
   onSelect: (i) => { app.selected = i; renderEq(); },
 });
-const renderBands = buildBands($("bands"), {
-  onEdit: editBand,
-  onSelect: (i) => { if (i !== app.selected) { app.selected = i; graph.select(i); renderBands(activePreset().bands, i); } },
-});
-const renderMic = buildMicPanel($("panel-mic"), actions);
-const renderStream = buildStreamPanel($("panel-stream"), actions);
-const device = buildDevicePanel($("panel-device"), actions);
+let renderBands;
+let renderMic;
+let renderStream;
+let device;
+
+/** (Re)build the generated controls in the current language. */
+function buildPanels() {
+  const panels = ["bands", "panel-mic", "panel-stream", "panel-device"].map($);
+  panels.forEach((node) => node.replaceChildren());
+  const [bands, mic, stream, dev] = panels;
+  renderBands = buildBands(bands, {
+    onEdit: editBand,
+    onSelect: (i) => { if (i !== app.selected) { app.selected = i; graph.select(i); renderBands(activePreset().bands, i); } },
+  });
+  renderMic = buildMicPanel(mic, actions);
+  renderStream = buildStreamPanel(stream, actions);
+  device = buildDevicePanel(dev, actions);
+}
+
 const slotButtons = Array.from({ length: p.PRESET_COUNT }, (_, i) => {
   const btn = el("button", { type: "button", role: "radio", onclick: () => activate(i) });
   btn.addEventListener("keydown", (e) => {
@@ -363,7 +382,7 @@ function renderEq({ cancelDrag = false } = {}) {
 function renderStatus() {
   const s = app.state;
   const chip = $("headset-chip");
-  chip.textContent = DEMO ? "Demo" : !s.headsetOn ? "Headset aus" : s.docked ? "Im Dock" : "Headset an";
+  chip.textContent = DEMO ? "Demo" : t(!s.headsetOn ? "chipOff" : s.docked ? "chipDocked" : "chipOn");
   chip.classList.toggle("on", s.headsetOn);
   const battery = $("battery-chip");
   battery.hidden = !s.headsetOn;
@@ -371,7 +390,7 @@ function renderStatus() {
   battery.classList.toggle("charging", s.charging);
   $("battery-fill").style.width = `calc(${s.battery}% - 3px)`;
   $("battery-text").textContent = `${s.battery} %`;
-  battery.title = s.charging ? "Akku lädt" : "Akku des Headsets";
+  battery.title = t(s.charging ? "batteryCharging" : "batteryTitle");
   device.status(s);
 }
 
@@ -433,7 +452,7 @@ function setupLibrary() {
     try {
       applyPreset(parseIni(await file.text(), file.name.replace(/\.[^.]+$/, "")));
     } catch (err) {
-      toast(`Import fehlgeschlagen: ${err.message}`);
+      toast(t("importFailed", { message: err.message }));
     }
   });
   $("export").addEventListener("click", () => {
@@ -442,7 +461,7 @@ function setupLibrary() {
     const link = el("a", { href: url, download: `${preset.name || "preset"}.ini` });
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast(`„${preset.name}“ exportiert`);
+    toast(t("exported", { name: preset.name }));
   });
   $("rename-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -457,10 +476,24 @@ function setupLibrary() {
   });
 }
 
+/** Apply the current language to the static page and every generated control. */
+function localize() {
+  translatePage();
+  if (DEMO) document.title = `Demo – ${document.title}`;
+  buildPanels();
+  if (app.state) renderAll();
+  renderMessage();
+}
+
 function init() {
   const preview = new EqGraph($("welcome-canvas"), { onChange() {}, onSelect() {} });
   preview.setBands(factoryPresets()[0].bands);
   preview.select(-1);
+  localize();
+  $("lang").addEventListener("click", () => {
+    setLang(lang === "de" ? "en" : "de");
+    localize();
+  });
   setupTabs();
   setupLibrary();
   $("save").addEventListener("click", save);
@@ -468,22 +501,21 @@ function init() {
   $("copy-udev").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText($("udev-rule").textContent);
-      toast("Befehl kopiert");
+      toast(t("copied"));
     } catch {
-      toast("Kopieren nicht möglich – bitte markieren und kopieren");
+      toast(t("copyFailed"));
     }
   });
   window.addEventListener("beforeunload", (e) => {
     if (app.state && !sameSettings(app.state.live, app.state.saved)) e.preventDefault();
   });
   if (DEMO) {
-    document.title = `Demo – ${document.title}`;
     connect({ demo: true });
     return;
   }
   if (!hidSupported()) {
     $("connect").disabled = true;
-    showMessage("Dieser Browser unterstützt kein WebHID. Öffne die Seite in Chrome, Edge, Brave oder Opera am Desktop.");
+    showMessage(() => t("noWebHid"));
     return;
   }
   $("connect").addEventListener("click", async () => {
@@ -494,11 +526,11 @@ function init() {
     try {
       await connect(await requestDevice());
     } catch (err) {
-      showMessage(`Gerätewahl fehlgeschlagen: ${err.message}`);
+      showMessage(() => t("pickFailed", { message: err.message }));
     }
   });
   navigator.hid.addEventListener("disconnect", (e) => {
-    if (e.device === app.hid) disconnect("Die Basisstation wurde getrennt.");
+    if (e.device === app.hid) disconnect(() => t("unplugged"));
   });
   // Never auto-connect inside a frame: a hostile page could embed this one with allow="hid".
   const autoConnect = window.top === window;

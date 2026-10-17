@@ -5,7 +5,7 @@ browser on Windows, macOS, Linux and ChromeOS, and there is a native desktop app
 
 > **Use it online, nothing to install:** **<https://demoriaan.github.io/astro-a50-control/>**
 > Plug the base station in via USB, open the page in Chrome or Edge and click
-> *Basisstation verbinden*. Without a headset you can look around in the demo:
+> *Connect base station*. Without a headset you can look around in the demo:
 > <https://demoriaan.github.io/astro-a50-control/?demo>
 
 [Deutsche Version weiter unten](#deutsch)
@@ -43,8 +43,10 @@ Not supported: firmware updates (left out on purpose), older or newer A50 genera
 * Close other software that talks to the base station first (ASTRO Command Center, G HUB,
   the desktop app). Two programs at once would receive each other's answers; the app detects
   this and disconnects.
+* English and German interface: German if the browser's preferred language is German,
+  English otherwise; the button at the top right switches and remembers the choice.
 * The page is static and talks only to the headset: strict Content Security Policy, no
-  network requests, no tracking. The interface is in German for now.
+  network requests, no tracking.
 
 Run it locally:
 
@@ -150,7 +152,8 @@ sofort; *Speichern* schreibt sie dauerhaft ins Headset.
 Safari und Mobilbrowser können kein WebHID. Getestet unter Linux; Windows und macOS nutzen
 dieselbe Browser-Schnittstelle. Unter Linux ist einmalig eine udev-Regel nötig, die Seite
 zeigt den Befehl. Andere Programme, die mit der Basisstation sprechen (ASTRO Command Center,
-G HUB, Desktop-App), vorher schließen.
+G HUB, Desktop-App), vorher schließen. Die Oberfläche ist deutsch, wenn der Browser Deutsch als
+bevorzugte Sprache meldet, sonst englisch; der Knopf oben rechts schaltet um.
 
 **Linux-Desktop-App:** GTK4/libadwaita, Installation mit `./install.sh` (Abhängigkeiten und
 Kommandozeile siehe [oben](#linux-desktop-app)), alternativ als Flatpak.

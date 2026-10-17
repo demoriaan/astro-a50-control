@@ -1,0 +1,316 @@
+// UI strings. German when the browser's preferred language is German, English otherwise;
+// a choice made with the language button is remembered per browser.
+const STORE_KEY = "a50-lang";
+export const LANGS = ["en", "de"];
+
+const STRINGS = {
+  en: {
+    title: "A50 Control – Set up your ASTRO A50 in the browser",
+    description: "Unofficial WebHID tool for the ASTRO A50 (Gen 4): set up equalizer, microphone, stream mix and base station right in the browser.",
+    langSwitch: "Deutsch",
+    langSwitchCode: "de",
+    revert: "Revert",
+    save: "Save",
+    heroTitle: "Set up your ASTRO A50 in the browser",
+    heroLead: "Equalizer, microphone, stream mix and base station – straight over USB, nothing to install. You hear changes immediately; “Save” stores them on the headset.",
+    connect: "Connect base station",
+    tryDemo: "Try without a headset",
+    previewCaption: "Factory preset “ASTRO”",
+    needTitle: "What you need",
+    needBrowser: "A Chromium-based desktop browser such as Chrome, Edge or Opera – on Windows, macOS, Linux or ChromeOS. Firefox and Safari do not support WebHID.",
+    needBase: "The A50 base station (Gen 4) connected to your computer via USB.",
+    needAlone: "No other program talking to the base station at the same time: close the A50 Control desktop app, ASTRO Command Center or G HUB first.",
+    needUdev: "On Linux, a one-time udev rule so the browser may access the device:",
+    copyCommand: "Copy command",
+    sections: "Sections",
+    tabEq: "Equalizer",
+    tabMic: "Microphone",
+    tabStream: "Stream port",
+    tabDevice: "Device",
+    activePreset: "Active EQ preset",
+    factoryLabel: "Load factory preset",
+    factoryChoose: "Choose a factory preset …",
+    load: "Load",
+    import: "Import",
+    export: "Export",
+    eqCurve: "EQ curve of the active preset",
+    eqHint: "Drag the points to change gain and frequency. The mouse wheel over a point changes the bandwidth of bands 2 to 4.",
+    presetName: "Preset name",
+    rename: "Rename",
+    footerNote: "Unofficial tool, not affiliated with ASTRO Gaming or Logitech. ASTRO and A50 only name the compatible device. This page sends no data over the network; it only talks to your base station via WebHID.",
+    footerLink: "Source code, Linux desktop app and protocol documentation",
+
+    foreignTraffic: "Another program is talking to the base station at the same time (a second tab, the A50 Control desktop app, G HUB or ASTRO Command Center). Close it and connect again – otherwise answers can get mixed up.",
+    noAnswer: "No answer from the base station.",
+    deviceSays: "The base station reports: {message}.",
+    error: "Error: {message}",
+    otherTab: "The base station is already connected in another tab. Close the other tab first.",
+    openFailed: "The browser could not open the base station ({message}). On Linux the udev rule below is usually missing; otherwise another program is holding the device.",
+    connectedDemo: "Demo: simulated base station",
+    connected: "Base station connected",
+    retryHint: "{error} Close other programs that talk to the base station and try again.",
+    connectionLost: "The connection to the base station was lost.",
+    notResponding: "The base station stopped responding. Plug it in again and reconnect.",
+    savedToast: "Saved on the headset",
+    reverted: "Changes reverted",
+    presetLoaded: "“{name}” loaded – save to keep it",
+    chipOff: "Headset off",
+    chipDocked: "Docked",
+    chipOn: "Headset on",
+    batteryCharging: "Battery charging",
+    batteryTitle: "Headset battery",
+    importFailed: "Import failed: {message}",
+    exported: "“{name}” exported",
+    copied: "Command copied",
+    copyFailed: "Copying is not possible – please select and copy the text",
+    noWebHid: "This browser does not support WebHID. Open the page in Chrome, Edge or Opera on a desktop computer.",
+    pickFailed: "Device selection failed: {message}",
+    unplugged: "The base station was disconnected.",
+    iniNoEq: "no [Eq_Bands] section found",
+    iniBadValue: "invalid value for {key}",
+
+    gateStreaming: "Lightest setting. Most natural sound, lets ambient noise through – for quiet studio and home setups.",
+    gateNight: "Very light gate for quiet, natural speech – ideal for late sessions.",
+    gateHome: "ASTRO default. For small LANs and typical homes; removes most light background noise.",
+    gateTournament: "Most aggressive setting for loud stages. Least natural, and also gates the sidetone.",
+    micBright: "Bright, with emphasized highs",
+    micAiry: "Open and airy",
+    micWarm: "Fuller, with more lows",
+    micLevel: "USB mic level",
+    micLevelDesc: "Volume of your microphone on the computer (USB)",
+    sidetone: "Sidetone",
+    sidetoneDesc: "How loud you hear yourself in the headset",
+    levels: "Levels",
+    noiseGate: "Noise gate",
+    noiseGateDesc: "How loud you need to speak before the microphone opens.",
+    micEq: "Mic EQ",
+    micEqDesc: "Sound character of your microphone.",
+    streamGame: "Game",
+    streamGameDesc: "Outgoing game audio",
+    streamChat: "Chat",
+    streamChatDesc: "Outgoing voice chat",
+    streamMic: "Microphone",
+    streamMicDesc: "Your headset microphone in the stream",
+    streamAux: "AUX input",
+    streamAuxDesc: "Signal from the base station's AUX input",
+    streamPort: "Stream port",
+    streamPortDesc: "Mix at the base station's stream output, for example to a streaming PC or capture card. Does not change what you hear in the headset.",
+    defaultBalance: "Default balance",
+    defaultBalanceDesc: "Chat/game ratio when the headset turns on",
+    chat: "Chat",
+    game: "Game",
+    alertTones: "Alert tones",
+    alertTonesDesc: "Volume of signal tones and voice prompts",
+    ledBrightness: "LED brightness",
+    ledBrightnessDesc: "Lighting of the base station",
+    autoOff: "Turn off automatically",
+    autoOffDesc: "When the headset is not moved",
+    afterMinutes: "After {minutes} minutes",
+    status: "Status",
+    settings: "Settings",
+    firmware: "Firmware",
+    battery: "Battery",
+    currentBalance: "Current chat/game balance",
+    currentBalanceDesc: "Set with the balance buttons on the headset",
+    baseStation: "Base station",
+    buildDate: "Build date",
+    headset: "Headset",
+    batteryOffDesc: "Headset off – value from the last contact",
+    inDock: "In the charging dock",
+    headsetOn: "Headset on",
+    charging: "charging",
+    versionUnknownOff: "unknown (headset off)",
+    versionUnknown: "unknown",
+    bandBass: "Bass",
+    bandN: "Band {n}",
+    bandTreble: "Treble",
+    kindLowShelf: "Low shelf",
+    kindPeak: "Peak",
+    kindHighShelf: "High shelf",
+    gainOf: "{band} gain",
+    freqOf: "{band} frequency",
+    bwOf: "{band} bandwidth",
+    fixed: "fixed",
+    frequencyHz: "Frequency (Hz)",
+    bandwidth: "Bandwidth",
+  },
+  de: {
+    title: "A50 Control – ASTRO A50 im Browser einstellen",
+    description: "Inoffizielles WebHID-Werkzeug für das ASTRO A50 (Gen 4): Equalizer, Mikrofon, Stream-Mix und Basisstation direkt im Browser einstellen.",
+    langSwitch: "English",
+    langSwitchCode: "en",
+    revert: "Verwerfen",
+    save: "Speichern",
+    heroTitle: "Dein ASTRO A50 im Browser einstellen",
+    heroLead: "Equalizer, Mikrofon, Stream-Mix und Basisstation – direkt über USB, ohne Installation. Änderungen hörst du sofort, „Speichern“ legt sie dauerhaft im Headset ab.",
+    connect: "Basisstation verbinden",
+    tryDemo: "Ohne Headset ansehen",
+    previewCaption: "Werks-Preset „ASTRO“",
+    needTitle: "Was du brauchst",
+    needBrowser: "Einen Chromium-Browser am Desktop, etwa Chrome, Edge oder Opera – unter Windows, macOS, Linux oder ChromeOS. Firefox und Safari unterstützen WebHID nicht.",
+    needBase: "Die A50-Basisstation (Gen 4) per USB am Rechner.",
+    needAlone: "Kein anderes Programm, das gleichzeitig mit der Basisstation spricht: A50-Control-Desktop-App, ASTRO Command Center oder G HUB vorher schließen.",
+    needUdev: "Unter Linux einmalig eine udev-Regel, damit der Browser auf das Gerät zugreifen darf:",
+    copyCommand: "Befehl kopieren",
+    sections: "Bereiche",
+    tabEq: "Equalizer",
+    tabMic: "Mikrofon",
+    tabStream: "Stream-Port",
+    tabDevice: "Gerät",
+    activePreset: "Aktives EQ-Preset",
+    factoryLabel: "Werks-Preset laden",
+    factoryChoose: "Werks-Preset wählen …",
+    load: "Laden",
+    import: "Importieren",
+    export: "Exportieren",
+    eqCurve: "EQ-Kurve des aktiven Presets",
+    eqHint: "Punkte ziehen ändert Pegel und Frequenz. Mausrad über einem Punkt ändert die Bandbreite der Bänder 2 bis 4.",
+    presetName: "Name des Presets",
+    rename: "Umbenennen",
+    footerNote: "Inoffizielles Werkzeug, nicht mit ASTRO Gaming oder Logitech verbunden. ASTRO und A50 dienen nur der Bezeichnung des kompatiblen Geräts. Die Seite sendet keine Daten ins Netz; sie spricht nur über WebHID mit deiner Basisstation.",
+    footerLink: "Quellcode, Desktop-App für Linux und Protokolldokumentation",
+
+    foreignTraffic: "Ein anderes Programm spricht gleichzeitig mit der Basisstation (zweiter Tab, A50-Control-Desktop-App, G HUB oder ASTRO Command Center). Schließe es und verbinde neu – sonst können Antworten vertauscht werden.",
+    noAnswer: "Keine Antwort von der Basisstation.",
+    deviceSays: "Die Basisstation meldet: {message}.",
+    error: "Fehler: {message}",
+    otherTab: "Die Basisstation ist bereits in einem anderen Tab verbunden. Schließe zuerst den anderen Tab.",
+    openFailed: "Der Browser konnte die Basisstation nicht öffnen ({message}). Unter Linux fehlt meist die udev-Regel unten; ansonsten hält ein anderes Programm das Gerät.",
+    connectedDemo: "Demo: simulierte Basisstation",
+    connected: "Basisstation verbunden",
+    retryHint: "{error} Schließe andere Programme, die mit der Basisstation sprechen, und versuche es erneut.",
+    connectionLost: "Die Verbindung zur Basisstation ist abgebrochen.",
+    notResponding: "Die Basisstation antwortet nicht mehr. Steck sie neu ein und verbinde erneut.",
+    savedToast: "Im Headset gespeichert",
+    reverted: "Änderungen verworfen",
+    presetLoaded: "„{name}“ geladen – zum Behalten speichern",
+    chipOff: "Headset aus",
+    chipDocked: "Im Dock",
+    chipOn: "Headset an",
+    batteryCharging: "Akku lädt",
+    batteryTitle: "Akku des Headsets",
+    importFailed: "Import fehlgeschlagen: {message}",
+    exported: "„{name}“ exportiert",
+    copied: "Befehl kopiert",
+    copyFailed: "Kopieren nicht möglich – bitte markieren und kopieren",
+    noWebHid: "Dieser Browser unterstützt kein WebHID. Öffne die Seite in Chrome, Edge oder Opera am Desktop.",
+    pickFailed: "Gerätewahl fehlgeschlagen: {message}",
+    unplugged: "Die Basisstation wurde getrennt.",
+    iniNoEq: "keine [Eq_Bands]-Sektion gefunden",
+    iniBadValue: "ungültiger Wert für {key}",
+
+    gateStreaming: "Schwächste Stufe. Natürlichster Klang, lässt Umgebungsgeräusche durch – für ruhige Studio- und Heim-Umgebungen.",
+    gateNight: "Sehr leichtes Gate für leises, natürliches Sprechen – ideal für späte Sessions.",
+    gateHome: "ASTRO-Standard. Für kleine LANs und typische Wohnumgebungen, entfernt die meisten leichten Hintergrundgeräusche.",
+    gateTournament: "Aggressivste Stufe für laute Bühnen. Am wenigsten natürlich und gated zusätzlich den Sidetone.",
+    micBright: "Hell, mit betonten Höhen",
+    micAiry: "Offen und luftig",
+    micWarm: "Voller, mit mehr Tiefen",
+    micLevel: "USB-Mikrofonpegel",
+    micLevelDesc: "Lautstärke deines Mikrofons am PC (USB)",
+    sidetone: "Sidetone",
+    sidetoneDesc: "Wie laut du dich selbst im Headset hörst",
+    levels: "Pegel",
+    noiseGate: "Noise Gate",
+    noiseGateDesc: "Wie laut du sprechen musst, damit das Mikrofon öffnet.",
+    micEq: "Mikrofon-EQ",
+    micEqDesc: "Klangcharakter deines Mikrofons.",
+    streamGame: "Spiel",
+    streamGameDesc: "Ausgehender Spiel-Sound",
+    streamChat: "Chat",
+    streamChatDesc: "Ausgehender Voice-Chat",
+    streamMic: "Mikrofon",
+    streamMicDesc: "Dein Headset-Mikrofon im Stream",
+    streamAux: "AUX-Eingang",
+    streamAuxDesc: "Signal vom AUX-Eingang der Basisstation",
+    streamPort: "Stream-Port",
+    streamPortDesc: "Mischung am Stream-Ausgang der Basisstation, zum Beispiel zum Streaming-PC oder zur Capture-Karte. Ändert nicht, was du im Headset hörst.",
+    defaultBalance: "Standard-Balance",
+    defaultBalanceDesc: "Chat/Spiel-Verhältnis beim Einschalten",
+    chat: "Chat",
+    game: "Spiel",
+    alertTones: "Hinweistöne",
+    alertTonesDesc: "Lautstärke der Signal- und Ansagetöne",
+    ledBrightness: "LED-Helligkeit",
+    ledBrightnessDesc: "Beleuchtung der Basisstation",
+    autoOff: "Automatisch ausschalten",
+    autoOffDesc: "Wenn das Headset nicht bewegt wird",
+    afterMinutes: "Nach {minutes} Minuten",
+    status: "Status",
+    settings: "Einstellungen",
+    firmware: "Firmware",
+    battery: "Akku",
+    currentBalance: "Aktuelle Chat/Spiel-Balance",
+    currentBalanceDesc: "Wird an den Balance-Tasten des Headsets eingestellt",
+    baseStation: "Basisstation",
+    buildDate: "Build-Datum",
+    headset: "Headset",
+    batteryOffDesc: "Headset ausgeschaltet – Wert vom letzten Kontakt",
+    inDock: "In der Ladeschale",
+    headsetOn: "Headset an",
+    charging: "lädt",
+    versionUnknownOff: "unbekannt (Headset aus)",
+    versionUnknown: "unbekannt",
+    bandBass: "Bass",
+    bandN: "Band {n}",
+    bandTreble: "Höhen",
+    kindLowShelf: "Low-Shelf",
+    kindPeak: "Glocke",
+    kindHighShelf: "High-Shelf",
+    gainOf: "{band} Pegel",
+    freqOf: "{band} Frequenz",
+    bwOf: "{band} Bandbreite",
+    fixed: "fest",
+    frequencyHz: "Frequenz (Hz)",
+    bandwidth: "Bandbreite",
+  },
+};
+
+export const strings = STRINGS;
+
+/** German if the stored choice or, without one, the first preferred language is German. */
+export function pickLang(stored, preferred = []) {
+  if (LANGS.includes(stored)) return stored;
+  return String(preferred[0] ?? "").toLowerCase().startsWith("de") ? "de" : "en";
+}
+
+// Only in a page: Node (tests) warns when localStorage is touched without a backing file.
+const storage = () => (typeof document === "undefined" ? null : globalThis.localStorage);
+
+function storedLang() {
+  try {
+    return storage()?.getItem(STORE_KEY) ?? null;
+  } catch {
+    return null; // storage blocked
+  }
+}
+
+const nav = globalThis.navigator;
+export let lang = pickLang(storedLang(), nav?.languages?.length ? nav.languages : [nav?.language]);
+
+export function setLang(next) {
+  if (!LANGS.includes(next)) return;
+  lang = next;
+  try {
+    storage()?.setItem(STORE_KEY, next);
+  } catch {
+    // not remembered; the page still switches
+  }
+}
+
+export function t(key, vars = {}) {
+  const text = STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ""));
+}
+
+/** Fill [data-i18n] text and [data-i18n-attr="attr:key;attr:key"] attributes. */
+export function translatePage(root = document) {
+  document.documentElement.lang = lang;
+  for (const node of root.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
+  for (const node of root.querySelectorAll("[data-i18n-attr]")) {
+    for (const pair of node.dataset.i18nAttr.split(";")) {
+      const [attr, key] = pair.split(":");
+      node.setAttribute(attr, t(key));
+    }
+  }
+}
