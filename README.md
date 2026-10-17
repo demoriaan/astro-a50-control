@@ -6,6 +6,10 @@ rekonstruiert und am echten Gerät geprüft (Details: [docs/PROTOCOL.md](docs/PR
 
 ![Equalizer](docs/screenshot-eq.png)
 
+**Im Browser, ohne Installation:** <https://demoriaan.github.io/astro-a50-control/>
+(WebHID, Chrome/Edge/Brave/Opera am Desktop; unter Linux wird ebenfalls die udev-Regel gebraucht).
+Ohne Headset ausprobieren: <https://demoriaan.github.io/astro-a50-control/?demo>
+
 ## Funktionen
 
 * **Equalizer** – 3 Preset-Slots, 5 Bänder (Bass-Shelf, 3 Glocken, Höhen-Shelf) mit Pegel
@@ -51,6 +55,20 @@ flatpak install --user dist/a50control.flatpak
 ```
 
 Ohne Installation starten: `python3 -m a50control`
+
+## Web-App
+
+`web/` enthält dieselbe Steuerung als statische Seite (HTML/CSS/JS-Module, kein Build-Schritt,
+strenge CSP, keine Netzwerkzugriffe). Lokal starten:
+
+```sh
+python3 -m http.server 8642 --bind 127.0.0.1 --directory web   # dann http://localhost:8642/
+node --test web/test/*.test.js                                   # Tests
+```
+
+Desktop-App und Web-App nie gleichzeitig mit der Basisstation verbinden: Beide sähen die
+Antworten des anderen. Der Workflow `.github/workflows/pages.yml` testet und veröffentlicht `web/`
+auf GitHub Pages.
 
 ## Kommandozeile
 

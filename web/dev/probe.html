@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>A50 WebHID probe</title>
+  <style>body{font:14px monospace;background:#111;color:#ddd;padding:16px}button{font:inherit;padding:6px 12px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <p>Nur lesender WebHID-Test. Desktop-App vorher schließen.</p>
+  <button id="connect">Basisstation verbinden</button>
+  <pre id="out">bereit</pre>
+  <script type="module">
+    import { A50 } from "../js/device.js";
+    import { WebHidTransport, grantedDevice, hidSupported, requestDevice } from "../js/transport.js";
+    const out = document.getElementById("out");
+    const log = (msg) => { out.textContent += "\n" + msg; console.log("[a50probe]", msg); };
+    async function run(device) {
+      if (!device) { log("kein Gerät gewählt"); return; }
+      log(`Gerät: ${device.productName} ${device.vendorId.toString(16)}:${device.productId.toString(16)} `
+          + JSON.stringify(device.collections.map((c) => ({ page: c.usagePage.toString(16), usage: c.usage.toString(16) }))));
+      const t0 = performance.now();
+      const dev = new A50(await WebHidTransport.open(device));
+      try {
+        const s = await dev.readAll();
+        log(`readAll in ${Math.round(performance.now() - t0)} ms`);
+        log(JSON.stringify(s, null, 1));
+        window.__a50probe = { ok: true, state: s };
+        report({ ok: true, ms: Math.round(performance.now() - t0), fw: `${s.base.version}.${s.baseMinor}`,
+                 headset: s.headsetVersion, battery: s.battery, on: s.headsetOn,
+                 presets: s.live.presets.map((x) => x.name), sliders: s.live.sliders, ng: s.live.noiseGate });
+      } catch (err) {
+        log(`FEHLER ${err.name}: ${err.message}`);
+        window.__a50probe = { ok: false, error: `${err.name}: ${err.message}` };
+        report({ ok: false, error: `${err.name}: ${err.message}` });
+      } finally {
+        await dev.close();
+      }
+    }
+    // Dev only: echo the result to the local dev server's access log.
+    const report = (obj) => fetch(`/__probe?${encodeURIComponent(JSON.stringify(obj))}`).catch(() => {});
+    if (!hidSupported()) log("WebHID nicht verfügbar (Chromium-Browser über https/localhost nötig)");
+    document.getElementById("connect").addEventListener("click", async () => run(await requestDevice()));
+    grantedDevice().then((d) => { if (d) { log("bereits freigegeben -> automatisch"); run(d); } });
+  </script>
+</body>
+</html>
