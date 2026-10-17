@@ -2,7 +2,7 @@
 """Read-only protocol probe for the ASTRO A50 Gen 4 base station.
 
 Sends only *read* commands recovered from AstroCommandCenter.exe and dumps the
-raw responses. Usage: probe.py [/dev/hidrawN]
+raw responses. Usage: probe.py [/dev/hidrawN]   (default: auto-detect)
 """
 import os
 import select
@@ -52,7 +52,15 @@ def show(dev, name, cmd, payload=b""):
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "/dev/hidraw3"
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        from a50control.transport import find_devices
+        found = find_devices()
+        if not found:
+            sys.exit("no ASTRO A50 Gen 4 base station found")
+        path = found[0]
     dev = Dev(path)
     show(dev, "battery", 0x7C)
     show(dev, "current mix", 0x72)
