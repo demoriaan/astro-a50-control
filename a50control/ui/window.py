@@ -8,6 +8,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from .. import protocol as p
 from ..device import A50
+from ..i18n import t
 from ..transport import DeviceBusy, DeviceGone, DevicePermissionError, ForeignTraffic, Timeout, Transport, \
     find_devices
 from ..worker import Worker
@@ -15,9 +16,6 @@ from .eq_page import EqPage
 from .pages import DevicePage, MicPage, StreamPage
 
 POLL_MS = 2000
-FOREIGN_TEXT = ("Ein anderes Programm spricht gleichzeitig mit der Basisstation, zum Beispiel ein Browser-Tab "
-                "mit der A50-Control-Web-App. Schließe es und verbinde dann neu – sonst können Antworten "
-                "vertauscht werden.")
 POLL_FAILURES_BEFORE_RESET = 3
 TOAST_REPEAT_S = 8.0
 UDEV_HINT = ("sudo install -m644 data/70-astro-a50.rules /etc/udev/rules.d/ && "
@@ -45,10 +43,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.stream_page = StreamPage(self)
         self.device_page = DevicePage(self)
         for page, name, title, icon in (
-                (self.eq_page, "eq", "Equalizer", "a50-equalizer-symbolic"),
-                (self.mic_page, "mic", "Mikrofon", "audio-input-microphone-symbolic"),
-                (self.stream_page, "stream", "Stream-Port", "a50-stream-symbolic"),
-                (self.device_page, "device", "Gerät", "audio-headphones-symbolic")):
+                (self.eq_page, "eq", t("tab_eq"), "a50-equalizer-symbolic"),
+                (self.mic_page, "mic", t("tab_mic"), "audio-input-microphone-symbolic"),
+                (self.stream_page, "stream", t("tab_stream"), "a50-stream-symbolic"),
+                (self.device_page, "device", t("tab_device"), "audio-headphones-symbolic")):
             self.view_stack.add_titled_with_icon(page, name, title, icon)
 
         self.header = Adw.HeaderBar()
@@ -57,22 +55,22 @@ class MainWindow(Adw.ApplicationWindow):
         self.header.set_title_widget(self.title)
         self.battery_icon = Gtk.Image(icon_name="battery-missing-symbolic")
         self.battery_label = Gtk.Label(css_classes=["numeric", "caption-heading"])
-        battery = Gtk.Box(spacing=4, tooltip_text="Akku des Headsets")
+        battery = Gtk.Box(spacing=4, tooltip_text=t("battery_tooltip"))
         battery.append(self.battery_icon)
         battery.append(self.battery_label)
         self.header.pack_start(battery)
         self.header.pack_end(self._menu_button())
-        self.save_button = Gtk.Button(label="Speichern", css_classes=["suggested-action"],
-                                      tooltip_text="Einstellungen dauerhaft im Headset speichern (Strg+S)",
+        self.save_button = Gtk.Button(label=t("save"), css_classes=["suggested-action"],
+                                      tooltip_text=t("save_tooltip"),
                                       action_name="win.save")
         self.revert_button = Gtk.Button(icon_name="edit-undo-symbolic",
-                                        tooltip_text="Ungespeicherte Änderungen verwerfen", action_name="win.revert")
+                                        tooltip_text=t("revert_tooltip"), action_name="win.revert")
         self.header.pack_end(self.save_button)
         self.header.pack_end(self.revert_button)
 
         self.switcher_bar = Adw.ViewSwitcherBar(stack=self.view_stack)
         self.status_page = Adw.StatusPage(icon_name="audio-headphones-symbolic")
-        self.status_button = Gtk.Button(label="Erneut suchen", halign=Gtk.Align.CENTER,
+        self.status_button = Gtk.Button(label=t("search_again"), halign=Gtk.Align.CENTER,
                                         css_classes=["pill", "suggested-action"])
         self.status_button.connect("clicked", self._on_status_button)
         self._status_mode = "search"
@@ -93,7 +91,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.add_breakpoint(narrow)
 
         self._add_actions()
-        self._show_status("Suche Basisstation …", "Verbinde die ASTRO A50 Basisstation per USB.", busy=True)
+        self._show_status(t("searching_title"), t("searching_text"), busy=True)
         self.connect("close-request", self._on_close)
         self._tick_source = GLib.timeout_add(POLL_MS, self._tick)
         GLib.idle_add(self._first_tick)
@@ -102,10 +100,10 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _menu_button(self) -> Gtk.MenuButton:
         menu = Gio.Menu()
-        menu.append("Neu einlesen", "win.refresh")
-        menu.append("Über A50 Control", "app.about")
+        menu.append(t("menu_refresh"), "win.refresh")
+        menu.append(t("menu_about"), "app.about")
         return Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, primary=True,
-                              tooltip_text="Hauptmenü")
+                              tooltip_text=t("menu_tooltip"))
 
     def _add_actions(self) -> None:
         for name, cb, accel in (("save", self.save, "<Control>s"), ("revert", self.revert, None),
@@ -124,7 +122,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._last_toast = (text, now)
         self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
 
-    def _show_status(self, title: str, text: str, busy: bool = False, button: str | None = "Erneut suchen") -> None:
+    def _show_status(self, title: str, text: str, busy: bool = False,
+                     button: str | None = t("search_again")) -> None:
         self._status_mode = "search"
         self.status_page.set_title(title)
         self.status_page.set_description(text)
@@ -167,9 +166,7 @@ class MainWindow(Adw.ApplicationWindow):
         paths = find_devices()
         if not paths:
             self.state = None
-            self._show_status("Keine Basisstation gefunden",
-                              "Schließe die ASTRO A50 (Gen 4) Basisstation per USB an. "
-                              "Sie wird automatisch erkannt.")
+            self._show_status(t("not_found_title"), t("not_found_text"))
             return
         self._connecting = True
         path = paths[0]
@@ -196,7 +193,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.state = state
         self.sync_all()
         self._show_main()
-        self.toast("Basisstation verbunden")
+        self.toast(t("connected"))
 
     def _on_connect_error(self, exc: Exception, _dev=None) -> None:
         self._connecting = False
@@ -206,32 +203,29 @@ class MainWindow(Adw.ApplicationWindow):
             self._pause_for_foreign()
             return
         if isinstance(exc, DevicePermissionError):
-            self._show_status("Kein Zugriff auf die Basisstation",
-                              f"Linux erlaubt den Zugriff auf {exc.path} nur root. Installiere einmalig die "
-                              f"udev-Regel aus dem Projektordner:\n\n<tt>{GLib.markup_escape_text(UDEV_HINT)}</tt>",
-                              button="Befehl kopieren")
+            text = GLib.markup_escape_text(t("no_access_text", path=exc.path))
+            self._show_status(t("no_access_title"), f"{text}\n\n<tt>{GLib.markup_escape_text(UDEV_HINT)}</tt>",
+                              button=t("copy_command"))
             self._status_mode = "permission"
             return
         if isinstance(exc, DeviceBusy):
-            self._show_status("Basisstation belegt",
-                              "Ein anderes Programm (z. B. die Kommandozeile von A50 Control) "
-                              "spricht gerade mit der Basisstation. Es wird automatisch erneut versucht.")
+            self._show_status(t("busy_title"), t("busy_text"))
             return
-        self._show_status("Verbindung fehlgeschlagen", GLib.markup_escape_text(str(exc)))
+        self._show_status(t("connect_failed"), GLib.markup_escape_text(str(exc)))
 
     def _on_status_button(self, _button) -> None:
         if self._status_mode == "permission":
             Gdk.Display.get_default().get_clipboard().set(UDEV_HINT)
-            self.toast("Befehl in die Zwischenablage kopiert")
+            self.toast(t("command_copied"))
         else:
             self._paused = False
             self.refresh()
 
     def _pause_for_foreign(self) -> None:
         if self.worker.device is not None:
-            self._disconnect("Andere Software greift auf die Basisstation zu")
+            self._disconnect(t("foreign_toast"))
         self._paused = True
-        self._show_status("Basisstation wird mitbenutzt", FOREIGN_TEXT, button="Erneut verbinden")
+        self._show_status(t("foreign_title"), t("foreign_text"), button=t("reconnect"))
 
     def _on_close(self, *_args) -> bool:
         GLib.source_remove(self._tick_source)
@@ -248,7 +242,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.worker.submit(("close", id(dev)), lambda _d: dev.close(), needs_device=False)
         self.state = None
         self.toast(message)
-        self._show_status("Basisstation getrennt", "Warte auf die ASTRO A50 Basisstation …", busy=True)
+        self._show_status(t("disconnected_title"), t("waiting_text"), busy=True)
 
     # -- state propagation -------------------------------------------------
 
@@ -263,7 +257,7 @@ class MainWindow(Adw.ApplicationWindow):
         s = self.state
         if not s.headset_on:
             self.battery_icon.set_from_icon_name("battery-missing-symbolic")
-            self.battery_label.set_label("Headset aus")
+            self.battery_label.set_label(t("headset_off"))
         else:
             level = min(100, int(round(s.battery / 10.0)) * 10)
             suffix = "-charging" if s.charging else ""
@@ -294,7 +288,7 @@ class MainWindow(Adw.ApplicationWindow):
         if dev is not self.worker.device:
             return
         if isinstance(exc, DeviceGone):
-            self._disconnect("Verbindung zur Basisstation verloren")
+            self._disconnect(t("connection_lost"))
             return
         if isinstance(exc, ForeignTraffic):
             self._pause_for_foreign()
@@ -303,23 +297,23 @@ class MainWindow(Adw.ApplicationWindow):
             return  # the station answered, just not usefully; no reason to reconnect
         self._poll_failures += 1
         if self._poll_failures >= POLL_FAILURES_BEFORE_RESET:
-            self._disconnect("Basisstation antwortet nicht – verbinde neu")
+            self._disconnect(t("not_responding"))
 
     def _on_error(self, exc: Exception, dev=None) -> None:
         if dev is not None and dev is not self.worker.device:
             return  # error from a connection that has already been replaced
         if isinstance(exc, DeviceGone):
-            self._disconnect("Verbindung zur Basisstation verloren")
+            self._disconnect(t("connection_lost"))
             return
         if isinstance(exc, ForeignTraffic):
             self._pause_for_foreign()
             return
         if isinstance(exc, Timeout):
-            self.toast("Keine Antwort von der Basisstation")
+            self.toast(t("no_answer"))
         elif isinstance(exc, p.DeviceError):
-            self.toast(f"Gerät meldet: {exc.message}")
+            self.toast(t("device_says", message=exc.message))
         else:
-            self.toast(f"Fehler: {exc}")
+            self.toast(t("error", message=exc))
         self._resync()
 
     def _resync(self, toast: str | None = None) -> None:
@@ -360,7 +354,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.mark_changed()
         snapshot = copy.deepcopy(preset)
         self.run(("apply", index), lambda d: d.apply_preset(index, snapshot))
-        self.toast(f"„{name}“ geladen – zum Behalten speichern")
+        self.toast(t("preset_loaded", name=name))
 
     def set_slider(self, slider: int, value: int) -> None:
         self.state.live.sliders[slider] = value
@@ -407,7 +401,7 @@ class MainWindow(Adw.ApplicationWindow):
                 return
             self.state.saved = saved
             self.mark_changed()
-            self.toast("Im Headset gespeichert")
+            self.toast(t("saved"))
 
         def failed(exc, dev):
             self._saving = False
@@ -426,11 +420,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         def done(state):
             if writes != self._writes:
-                self._resync("Änderungen verworfen")
+                self._resync(t("reverted"))
                 return
             self.state = state
             self.sync_all()
-            self.toast("Änderungen verworfen")
+            self.toast(t("reverted"))
 
         self.worker.submit("revert", lambda d: (d.revert(), copy.deepcopy(d.state))[1], done, self._on_error)
 
@@ -439,4 +433,4 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect()
             return
 
-        self._resync("Einstellungen neu eingelesen")
+        self._resync(t("reloaded"))

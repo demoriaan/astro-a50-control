@@ -10,4 +10,5 @@ Icon=de.donno.A50Control
 Terminal=false
 Categories=Settings;HardwareSettings;
 Keywords=astro;a50;headset;equalizer;eq;microphone;sidetone;
+Keywords[de]=astro;a50;headset;equalizer;eq;mikrofon;sidetone;kopfhörer;
 StartupNotify=true

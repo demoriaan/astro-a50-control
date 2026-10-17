@@ -25,6 +25,7 @@ browser on Windows, macOS, Linux and ChromeOS, and there is a native desktop app
   LED brightness, auto power-off, base and headset firmware
 * Changes apply immediately; **Save** stores them on the headset, **Revert** restores the
   saved state
+* English and German interface in both the web app and the desktop app
 * Linux desktop app with a command line for scripts: `a50control status`, `a50control preset 2`, …
 
 Supported: base station `9886:002c` (tested with firmware 40372).
@@ -84,6 +85,9 @@ flatpak install --user dist/a50control.flatpak
 ```
 
 Run without installing: `python3 -m a50control`
+
+The interface follows the system language: German on a German system, English otherwise.
+`LANGUAGE=en a50control` (or `LANGUAGE=de`) picks a language for one start.
 
 ### Command line
 
@@ -156,6 +160,7 @@ G HUB, Desktop-App), vorher schließen. Die Oberfläche ist deutsch, wenn der Br
 bevorzugte Sprache meldet, sonst englisch; der Knopf oben rechts schaltet um.
 
 **Linux-Desktop-App:** GTK4/libadwaita, Installation mit `./install.sh` (Abhängigkeiten und
-Kommandozeile siehe [oben](#linux-desktop-app)), alternativ als Flatpak.
+Kommandozeile siehe [oben](#linux-desktop-app)), alternativ als Flatpak. Die Oberfläche folgt der
+Systemsprache (Deutsch oder Englisch); `LANGUAGE=en a50control` startet sie einmalig auf Englisch.
 
 Nicht mit ASTRO Gaming oder Logitech verbunden. Nutzung auf eigene Gefahr. Lizenz: MIT.

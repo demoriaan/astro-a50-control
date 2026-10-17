@@ -5,16 +5,25 @@
   <project_license>MIT</project_license>
   <name>A50 Control</name>
   <summary>Settings for the ASTRO A50 Gen 4 wireless headset</summary>
+  <summary xml:lang="de">Einstellungen für das ASTRO A50 Gen 4 Wireless-Headset</summary>
   <description>
     <p>Unofficial Linux replacement for the Windows-only configuration software of the
        ASTRO A50 (Gen 4) base station: 5-band equalizer with three presets, noise gate,
        microphone EQ and level, sidetone, stream port mix, default balance, alert volume,
-       LED brightness and auto power-off.</p>
+       LED brightness and auto power-off. English and German interface.</p>
+    <p xml:lang="de">Inoffizieller Linux-Ersatz für die Windows-Software der ASTRO A50 (Gen 4)
+       Basisstation: 5-Band-Equalizer mit drei Presets, Noise Gate, Mikrofon-EQ und -Pegel,
+       Sidetone, Stream-Port-Mix, Standard-Balance, Hinweistöne, LED-Helligkeit und
+       automatische Abschaltung. Oberfläche auf Englisch und Deutsch.</p>
     <p>Not affiliated with ASTRO Gaming or Logitech.</p>
+    <p xml:lang="de">Nicht mit ASTRO Gaming oder Logitech verbunden.</p>
   </description>
   <developer id="de.donno">
     <name>A50 Control contributors</name>
   </developer>
+  <url type="homepage">https://demoriaan.github.io/astro-a50-control/</url>
+  <url type="vcs-browser">https://github.com/demoriaan/astro-a50-control</url>
+  <url type="bugtracker">https://github.com/demoriaan/astro-a50-control/issues</url>
   <launchable type="desktop-id">de.donno.A50Control.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>

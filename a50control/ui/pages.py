@@ -4,21 +4,20 @@ from __future__ import annotations
 from gi.repository import Adw, Gtk
 
 from .. import protocol as p
+from ..i18n import t
 from ..protocol import MicEq, NoiseGate, Slider
 
+# Mode names are the ones printed on the headset and used by ASTRO; only descriptions are translated.
 NOISE_GATE_TEXT = {
-    NoiseGate.STREAMING: ("Streaming", "Schwächste Stufe. Natürlichster Klang, lässt Umgebungsgeräusche durch – "
-                                       "für ruhige Studio- und Heim-Umgebungen."),
-    NoiseGate.NIGHT: ("Night", "Sehr leichtes Gate für leises, natürliches Sprechen – ideal für späte Sessions."),
-    NoiseGate.HOME: ("Home", "ASTRO-Standard. Für kleine LANs und typische Wohnumgebungen, "
-                             "entfernt die meisten leichten Hintergrundgeräusche."),
-    NoiseGate.TOURNAMENT: ("Tournament", "Aggressivste Stufe für laute Bühnen. Am wenigsten natürlich und "
-                                         "gated zusätzlich den Sidetone."),
+    NoiseGate.STREAMING: ("Streaming", t("gate_streaming")),
+    NoiseGate.NIGHT: ("Night", t("gate_night")),
+    NoiseGate.HOME: ("Home", t("gate_home")),
+    NoiseGate.TOURNAMENT: ("Tournament", t("gate_tournament")),
 }
 MIC_EQ_TEXT = {
-    MicEq.BRIGHT: ("Bright", "Hell, mit betonten Höhen"),
-    MicEq.AIRY: ("Airy", "Offen und luftig"),
-    MicEq.WARM: ("Warm", "Voller, mit mehr Tiefen"),
+    MicEq.BRIGHT: ("Bright", t("mic_bright")),
+    MicEq.AIRY: ("Airy", t("mic_airy")),
+    MicEq.WARM: ("Warm", t("mic_warm")),
 }
 
 
@@ -33,13 +32,17 @@ def balance_text(value: int) -> str:
 
 def headset_text(state) -> str:
     if not state.headset_on:
-        return "Headset ausgeschaltet – Akkustand vom letzten Kontakt"
-    parts = ["Headset an"]
+        return t("battery_off")
+    parts = [t("headset_on")]
     if state.docked:
-        parts.append("in der Ladeschale")
+        parts.append(t("in_dock"))
     if state.charging:
-        parts.append("lädt")
+        parts.append(t("charging"))
     return ", ".join(parts)
+
+
+def headset_version_text(state) -> str:
+    return state.headset_version or t("version_unknown" if state.headset_on else "version_unknown_off")
 
 
 class ScaleRow(Adw.ActionRow):
@@ -120,18 +123,18 @@ class MicPage(Adw.PreferencesPage):
     def __init__(self, window) -> None:
         super().__init__()
         self.win = window
-        levels = Adw.PreferencesGroup(title="Pegel")
-        self.mic_level = ScaleRow("USB-Mikrofonpegel", "Lautstärke deines Mikrofons am PC (USB)",
+        levels = Adw.PreferencesGroup(title=t("levels"))
+        self.mic_level = ScaleRow(t("mic_level"), t("mic_level_desc"),
                                   0, p.SLIDER_MAX, lambda v: window.set_slider(Slider.MIC_LEVEL, v))
-        self.sidetone = ScaleRow("Sidetone", "Wie laut du dich selbst im Headset hörst",
+        self.sidetone = ScaleRow(t("sidetone"), t("sidetone_desc"),
                                  0, p.SLIDER_MAX, lambda v: window.set_slider(Slider.SIDETONE, v))
         levels.add(self.mic_level)
         levels.add(self.sidetone)
         self.add(levels)
-        self.noise_gate = ChoiceGroup("Noise Gate", "Wie laut du sprechen musst, damit das Mikrofon öffnet",
+        self.noise_gate = ChoiceGroup(t("noise_gate"), t("noise_gate_desc"),
                                       {m: NOISE_GATE_TEXT[m] for m in NoiseGate}, window.set_noise_gate)
         self.add(self.noise_gate)
-        self.mic_eq = ChoiceGroup("Mikrofon-EQ", "Klangcharakter deines Mikrofons",
+        self.mic_eq = ChoiceGroup(t("mic_eq"), t("mic_eq_desc"),
                                   {m: MIC_EQ_TEXT[m] for m in MicEq}, window.set_mic_eq)
         self.add(self.mic_eq)
 
@@ -143,20 +146,17 @@ class MicPage(Adw.PreferencesPage):
 
 
 class StreamPage(Adw.PreferencesPage):
-    ROWS = ((Slider.STREAM_GAME, "Spiel", "Ausgehender Spiel-Sound"),
-            (Slider.STREAM_CHAT, "Chat", "Ausgehender Voice-Chat"),
-            (Slider.STREAM_MIC, "Mikrofon", "Dein Headset-Mikrofon im Stream"),
-            (Slider.STREAM_AUX, "AUX-Eingang", "Signal vom AUX-Eingang der Basisstation"))
+    ROWS = ((Slider.STREAM_GAME, "stream_game"),
+            (Slider.STREAM_CHAT, "stream_chat"),
+            (Slider.STREAM_MIC, "stream_mic"),
+            (Slider.STREAM_AUX, "stream_aux"))
 
     def __init__(self, window) -> None:
         super().__init__()
-        group = Adw.PreferencesGroup(
-            title="Stream-Port",
-            description="Mischung am Stream-Ausgang der Basisstation (z. B. zum Streaming-PC oder zur "
-                        "Capture-Karte). Ändert nicht, was du im Headset hörst.")
+        group = Adw.PreferencesGroup(title=t("stream_port"), description=t("stream_port_desc"))
         self.rows = {}
-        for slider, title, subtitle in self.ROWS:
-            row = ScaleRow(title, subtitle, 0, p.SLIDER_MAX, lambda v, s=slider: window.set_slider(s, v))
+        for slider, key in self.ROWS:
+            row = ScaleRow(t(key), t(f"{key}_desc"), 0, p.SLIDER_MAX, lambda v, s=slider: window.set_slider(s, v))
             group.add(row)
             self.rows[slider] = row
         self.add(group)
@@ -170,50 +170,49 @@ class DevicePage(Adw.PreferencesPage):
     def __init__(self, window) -> None:
         super().__init__()
         self._sync = False
-        live = Adw.PreferencesGroup(title="Status")
-        self.battery_row = Adw.ActionRow(title="Akku")
+        live = Adw.PreferencesGroup(title=t("status"))
+        self.battery_row = Adw.ActionRow(title=t("battery"))
         self.battery_bar = Gtk.LevelBar(min_value=0, max_value=100, valign=Gtk.Align.CENTER)
         self.battery_bar.set_size_request(SCALE_WIDTH, -1)
         self.battery_label = Gtk.Label(width_chars=6, xalign=1, css_classes=["numeric"])
         self.battery_row.add_suffix(self.battery_bar)
         self.battery_row.add_suffix(self.battery_label)
         live.add(self.battery_row)
-        self.mix_row = Adw.ActionRow(title="Aktuelle Chat/Spiel-Balance",
-                                     subtitle="Wird an den Balance-Tasten des Headsets eingestellt")
+        self.mix_row = Adw.ActionRow(title=t("current_balance"), subtitle=t("current_balance_desc"))
         self.mix_bar = Gtk.LevelBar(min_value=0, max_value=p.BALANCE_MAX, valign=Gtk.Align.CENTER,
                                     mode=Gtk.LevelBarMode.CONTINUOUS)
         self.mix_bar.set_size_request(SCALE_WIDTH, -1)
         for offset in ("low", "high", "full"):
             self.mix_bar.remove_offset_value(offset)
         self.mix_label = Gtk.Label(width_chars=6, xalign=1, css_classes=["numeric"])
-        self.mix_row.add_suffix(Gtk.Label(label="Chat", css_classes=["dim-label", "caption"]))
+        self.mix_row.add_suffix(Gtk.Label(label=t("chat"), css_classes=["dim-label", "caption"]))
         self.mix_row.add_suffix(self.mix_bar)
-        self.mix_row.add_suffix(Gtk.Label(label="Spiel", css_classes=["dim-label", "caption"]))
+        self.mix_row.add_suffix(Gtk.Label(label=t("game"), css_classes=["dim-label", "caption"]))
         self.mix_row.add_suffix(self.mix_label)
         live.add(self.mix_row)
         self.add(live)
 
-        settings = Adw.PreferencesGroup(title="Einstellungen")
-        self.balance = ScaleRow("Standard-Balance", "Chat/Spiel-Verhältnis beim Einschalten",
+        settings = Adw.PreferencesGroup(title=t("settings"))
+        self.balance = ScaleRow(t("default_balance"), t("default_balance_desc"),
                                 0, p.BALANCE_MAX, window.set_balance, mark=p.BALANCE_MAX // 2 + 1,
-                                left="Chat", right="Spiel", fmt=balance_text)
-        self.alert = ScaleRow("Hinweistöne", "Lautstärke der Signal- und Ansagetöne",
+                                left=t("chat"), right=t("game"), fmt=balance_text)
+        self.alert = ScaleRow(t("alert_tones"), t("alert_tones_desc"),
                               0, p.ALERT_MAX, window.set_alert_volume, unit=" %")
-        self.brightness = ScaleRow("LED-Helligkeit", "Beleuchtung der Basisstation",
+        self.brightness = ScaleRow(t("led_brightness"), t("led_brightness_desc"),
                                    p.BRIGHTNESS_MIN, p.BRIGHTNESS_MAX, window.set_brightness)
-        self.auto_off = Adw.ComboRow(title="Automatisch ausschalten",
-                                     subtitle="Wenn das Headset nicht bewegt wird",
-                                     model=Gtk.StringList.new([f"Nach {m} Minuten" for m in p.AUTO_OFF_MINUTES]))
+        self.auto_off = Adw.ComboRow(title=t("auto_off"), subtitle=t("auto_off_desc"),
+                                     model=Gtk.StringList.new([t("after_minutes", minutes=m)
+                                                               for m in p.AUTO_OFF_MINUTES]))
         self.auto_off.connect("notify::selected", self._on_auto_off, window)
         for row in (self.balance, self.alert, self.brightness, self.auto_off):
             settings.add(row)
         self.add(settings)
 
-        info = Adw.PreferencesGroup(title="Basisstation")
-        self.fw_row = Adw.ActionRow(title="Firmware Basisstation", css_classes=["property"])
-        self.build_row = Adw.ActionRow(title="Build-Datum", css_classes=["property"])
-        self.headset_fw_row = Adw.ActionRow(title="Firmware Headset", css_classes=["property"])
-        self.node_row = Adw.ActionRow(title="Gerät", css_classes=["property"])
+        info = Adw.PreferencesGroup(title=t("base_station"))
+        self.fw_row = Adw.ActionRow(title=t("base_firmware"), css_classes=["property"])
+        self.build_row = Adw.ActionRow(title=t("build_date"), css_classes=["property"])
+        self.headset_fw_row = Adw.ActionRow(title=t("headset_firmware"), css_classes=["property"])
+        self.node_row = Adw.ActionRow(title=t("device"), css_classes=["property"])
         for row in (self.fw_row, self.build_row, self.headset_fw_row, self.node_row):
             row.set_subtitle_selectable(True)
             info.add(row)
@@ -236,13 +235,13 @@ class DevicePage(Adw.PreferencesPage):
         if state.base:
             self.fw_row.set_subtitle(f"{state.base.version}.{state.base_minor}")
             self.build_row.set_subtitle(state.base.build_date)
-        self.headset_fw_row.set_subtitle(state.headset_version or "– (Headset aus)")
+        self.headset_fw_row.set_subtitle(headset_version_text(state))
         self.node_row.set_subtitle(f"ASTRO A50 Gen 4 · {node}" if node else "ASTRO A50 Gen 4")
 
     def update_status(self, state) -> None:
         self.battery_bar.set_value(state.battery)
         self.battery_label.set_label(f"{state.battery} %")
         self.battery_row.set_subtitle(headset_text(state))
-        self.headset_fw_row.set_subtitle(state.headset_version or "– (Headset aus)")
+        self.headset_fw_row.set_subtitle(headset_version_text(state))
         self.mix_bar.set_value(state.mix)
         self.mix_label.set_label(balance_text(state.mix))

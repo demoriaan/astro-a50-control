@@ -8,10 +8,11 @@ from gi.repository import Adw, Gio, GLib, Gtk
 
 from .. import presets as library
 from .. import protocol as p
+from ..i18n import t
 from .eq_graph import BAND_COLORS, EqGraph
 
-BAND_TITLES = ("Bass", "Band 2", "Band 3", "Band 4", "Höhen")
-BAND_KINDS = ("Low-Shelf", "Glocke", "Glocke", "Glocke", "High-Shelf")
+BAND_TITLES = (t("band_bass"), t("band_n", n=2), t("band_n", n=3), t("band_n", n=4), t("band_treble"))
+BAND_KINDS = (t("kind_low_shelf"), t("kind_peak"), t("kind_peak"), t("kind_peak"), t("kind_high_shelf"))
 
 
 class BandColumn(Gtk.Box):
@@ -82,7 +83,7 @@ class EqPage(Gtk.ScrolledWindow):
         self.graph.connect("band-selected", lambda _g, i: self.select_band(i))
         frame = Gtk.Frame(child=self.graph, css_classes=["eq-card"])
         box.append(frame)
-        hint = Gtk.Label(label="Punkte ziehen: Pegel & Frequenz · Mausrad: Bandbreite (Bänder 2–4)",
+        hint = Gtk.Label(label=t("eq_hint"),
                          css_classes=["dim-label", "caption"], halign=Gtk.Align.START)
         box.append(hint)
 
@@ -94,20 +95,20 @@ class EqPage(Gtk.ScrolledWindow):
 
         self.detail = Adw.PreferencesGroup()
         self.freq_row = Adw.SpinRow.new_with_range(p.FREQ_MIN, p.FREQ_MAX, 1)
-        self.freq_row.set_title("Frequenz")
+        self.freq_row.set_title(t("frequency"))
         self.freq_row.set_subtitle("Hz")
         self.freq_row.connect("notify::value", self._on_freq_row)
         self.bw_row = Adw.SpinRow.new_with_range(p.BW_MIN, p.BW_MAX, 0.1)
         self.bw_row.set_digits(1)
-        self.bw_row.set_title("Bandbreite")
-        self.bw_row.set_subtitle("größer = breiter")
+        self.bw_row.set_title(t("bandwidth"))
+        self.bw_row.set_subtitle(t("bandwidth_hint"))
         self.bw_row.connect("notify::value", self._on_bw_row)
         self.detail.add(self.freq_row)
         self.detail.add(self.bw_row)
         box.append(self.detail)
 
-        name_group = Adw.PreferencesGroup(title="Preset")
-        self.name_row = Adw.EntryRow(title="Name", show_apply_button=True)
+        name_group = Adw.PreferencesGroup(title=t("preset"))
+        self.name_row = Adw.EntryRow(title=t("name"), show_apply_button=True)
         if hasattr(self.name_row, "set_max_length"):  # libadwaita >= 1.6
             self.name_row.set_max_length(p.NAME_MAX)
         self.name_row.connect("apply", self._on_name_apply)
@@ -121,11 +122,11 @@ class EqPage(Gtk.ScrolledWindow):
         factory = Gio.Menu()
         for i, preset in enumerate(library.factory_presets()):
             factory.append(preset.name.title(), f"eq.factory({i})")
-        menu.append_submenu("Werks-Preset laden", factory)
-        menu.append("Neutral (alles 0 dB)", "eq.flat")
+        menu.append_submenu(t("load_factory"), factory)
+        menu.append(t("flat"), "eq.flat")
         files = Gio.Menu()
-        files.append("Aus Datei importieren…", "eq.import")
-        files.append("Als Datei exportieren…", "eq.export")
+        files.append(t("import_file"), "eq.import")
+        files.append(t("export_file"), "eq.export")
         menu.append_section(None, files)
 
         group = Gio.SimpleActionGroup()
@@ -137,7 +138,7 @@ class EqPage(Gtk.ScrolledWindow):
             a.connect("activate", lambda *_a, cb=cb: cb())
             group.add_action(a)
         self.insert_action_group("eq", group)
-        return Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, tooltip_text="Preset-Bibliothek",
+        return Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, tooltip_text=t("library"),
                               valign=Gtk.Align.CENTER)
 
     # -- state -------------------------------------------------------------
@@ -243,7 +244,7 @@ class EqPage(Gtk.ScrolledWindow):
         if name != row.get_text():
             row.set_text(name)
         if not name:
-            self.win.toast("Der Name darf nicht leer sein")
+            self.win.toast(t("name_empty"))
             return
         idx = self.preset_index
         self.win.state.live.presets[idx].name = name
@@ -262,7 +263,7 @@ class EqPage(Gtk.ScrolledWindow):
         self._apply(flat)
 
     def _import(self) -> None:
-        dialog = Gtk.FileDialog(title="EQ-Preset importieren", filters=_ini_filters())
+        dialog = Gtk.FileDialog(title=t("import_title"), filters=_ini_filters())
 
         def done(dlg, result):
             try:
@@ -272,13 +273,13 @@ class EqPage(Gtk.ScrolledWindow):
             try:
                 self._apply(library.load_ini(file.get_path()))
             except (OSError, ValueError, KeyError, ArithmeticError, configparser.Error) as exc:
-                self.win.toast(f"Import fehlgeschlagen: {exc}")
+                self.win.toast(t("import_failed", message=exc))
 
         dialog.open(self.win, None, done)
 
     def _export(self) -> None:
         preset = copy.deepcopy(self.win.state.live.presets[self.preset_index])
-        dialog = Gtk.FileDialog(title="EQ-Preset exportieren", filters=_ini_filters(),
+        dialog = Gtk.FileDialog(title=t("export_title"), filters=_ini_filters(),
                                 initial_name=f"{preset.name or 'preset'}.ini")
 
         def done(dlg, result):
@@ -288,15 +289,15 @@ class EqPage(Gtk.ScrolledWindow):
                 return
             try:
                 library.save_ini(preset, file.get_path())
-                self.win.toast(f"„{preset.name}“ exportiert")
+                self.win.toast(t("exported", name=preset.name))
             except (OSError, ValueError, configparser.Error) as exc:
-                self.win.toast(f"Export fehlgeschlagen: {exc}")
+                self.win.toast(t("export_failed", message=exc))
 
         dialog.save(self.win, None, done)
 
 
 def _ini_filters() -> Gio.ListStore:
-    flt = Gtk.FileFilter(name="ASTRO EQ-Presets (*.ini)")
+    flt = Gtk.FileFilter(name=t("ini_filter"))
     flt.add_pattern("*.ini")
     store = Gio.ListStore.new(Gtk.FileFilter)
     store.append(flt)

@@ -13,6 +13,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 from . import APP_ID, __version__  # noqa: E402
+from .i18n import t  # noqa: E402
 from .ui.eq_page import band_css  # noqa: E402
 from .ui.window import MainWindow  # noqa: E402
 
@@ -57,8 +58,7 @@ class Application(Adw.Application):
     def _about(self, *_args) -> None:
         info = dict(application_name="A50 Control", application_icon=APP_ID, version=__version__,
                     developer_name="A50 Control contributors",
-                    comments="Einstellungen für das ASTRO A50 (Gen 4) Wireless-Headset unter Linux.\n"
-                             "Inoffiziell – nicht mit ASTRO Gaming oder Logitech verbunden.",
+                    comments=t("about_comments"),
                     license_type=Gtk.License.MIT_X11)
         if hasattr(Adw, "AboutDialog"):
             Adw.AboutDialog(**info).present(self.window)
