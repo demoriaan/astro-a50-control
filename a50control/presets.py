@@ -52,7 +52,7 @@ def load_ini(path: str | Path) -> Preset:
 def save_ini(preset: Preset, path: str | Path) -> None:
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.optionxform = str
-    cfg["General"] = {"Name": preset.name}
+    cfg["General"] = {"Name": " ".join(preset.name.splitlines())}
     eq = {}
     for i, band in enumerate(preset.bands, start=1):
         eq[f"Eq_Band_{i}"] = str(band.gain)

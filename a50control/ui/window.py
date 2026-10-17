@@ -8,13 +8,16 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from .. import protocol as p
 from ..device import A50
-from ..transport import DeviceBusy, DeviceGone, DevicePermissionError, Timeout, Transport, find_devices
+from ..transport import DeviceBusy, DeviceGone, DevicePermissionError, ForeignTraffic, Timeout, Transport, \
+    find_devices
 from ..worker import Worker
 from .eq_page import EqPage
 from .pages import DevicePage, MicPage, StreamPage
 
 POLL_MS = 2000
-PRESET_SETTLE_S = 1.5
+FOREIGN_TEXT = ("Ein anderes Programm spricht gleichzeitig mit der Basisstation, zum Beispiel ein Browser-Tab "
+                "mit der A50-Control-Web-App. Schließe es und verbinde dann neu – sonst können Antworten "
+                "vertauscht werden.")
 POLL_FAILURES_BEFORE_RESET = 3
 TOAST_REPEAT_S = 8.0
 UDEV_HINT = ("sudo install -m644 data/70-astro-a50.rules /etc/udev/rules.d/ && "
@@ -29,7 +32,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.state = None
         self.node = ""
         self._connecting = False
-        self._preset_set_at = 0.0
+        self._paused = False  # no automatic reconnect after foreign traffic until the user asks
+        self._preset_gen = 0
         self._poll_failures = 0
         self._last_toast = ("", 0.0)
         self._writes = 0  # bumped per queued write; full re-reads only apply if unchanged
@@ -149,10 +153,12 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _tick(self) -> bool:
         if self.worker.device is None:
-            self._connect()
+            if not self._paused:
+                self._connect()
         elif not self.worker.pending("poll"):
-            self.worker.submit("poll", lambda d: copy.deepcopy(d.read_status()), self._on_poll,
-                               self._on_poll_error)
+            gen = self._preset_gen
+            self.worker.submit("poll", lambda d: copy.deepcopy(d.read_status()),
+                               lambda status: self._on_poll(status, gen), self._on_poll_error)
         return GLib.SOURCE_CONTINUE
 
     def _connect(self) -> None:
@@ -195,6 +201,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._connecting = False
         if self.worker.device is not None:
             return  # a stale attempt failed while another one succeeded
+        if isinstance(exc, ForeignTraffic):
+            self._pause_for_foreign()
+            return
         if isinstance(exc, DevicePermissionError):
             self._show_status("Kein Zugriff auf die Basisstation",
                               f"Linux erlaubt den Zugriff auf {exc.path} nur root. Installiere einmalig die "
@@ -214,7 +223,14 @@ class MainWindow(Adw.ApplicationWindow):
             Gdk.Display.get_default().get_clipboard().set(UDEV_HINT)
             self.toast("Befehl in die Zwischenablage kopiert")
         else:
+            self._paused = False
             self.refresh()
+
+    def _pause_for_foreign(self) -> None:
+        if self.worker.device is not None:
+            self._disconnect("Andere Software greift auf die Basisstation zu")
+        self._paused = True
+        self._show_status("Basisstation wird mitbenutzt", FOREIGN_TEXT, button="Erneut verbinden")
 
     def _on_close(self, *_args) -> bool:
         GLib.source_remove(self._tick_source)
@@ -259,15 +275,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.lookup_action("save").set_enabled(dirty and not self._saving)
         self.lookup_action("revert").set_enabled(dirty)
 
-    def _on_poll(self, status) -> None:
+    def _on_poll(self, status, gen: int) -> None:
         self._poll_failures = 0
         if self.state is None:
             return
         s = self.state
         s.battery, s.charging, s.mix = status.battery, status.charging, status.mix
         s.headset_on, s.docked, s.headset_version = status.headset_on, status.docked, status.headset_version
-        settled = time.monotonic() - self._preset_set_at > PRESET_SETTLE_S
-        if settled and status.active_preset != s.active_preset and not self.worker.pending("preset"):
+        # Only adopt the headset's preset if the user did not switch since this poll was queued.
+        if gen == self._preset_gen and status.active_preset != s.active_preset:
             s.active_preset = status.active_preset
             self.eq_page.update(s)
         self.device_page.update_status(s)
@@ -278,6 +294,9 @@ class MainWindow(Adw.ApplicationWindow):
             return
         if isinstance(exc, DeviceGone):
             self._disconnect("Verbindung zur Basisstation verloren")
+            return
+        if isinstance(exc, ForeignTraffic):
+            self._pause_for_foreign()
             return
         if not isinstance(exc, (Timeout, OSError)):
             return  # the station answered, just not usefully; no reason to reconnect
@@ -290,6 +309,9 @@ class MainWindow(Adw.ApplicationWindow):
             return  # error from a connection that has already been replaced
         if isinstance(exc, DeviceGone):
             self._disconnect("Verbindung zur Basisstation verloren")
+            return
+        if isinstance(exc, ForeignTraffic):
+            self._pause_for_foreign()
             return
         if isinstance(exc, Timeout):
             self.toast("Keine Antwort von der Basisstation")
@@ -325,7 +347,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def activate_preset(self, index: int) -> None:
         self.state.active_preset = index
-        self._preset_set_at = time.monotonic()
+        self._preset_gen += 1
         self.eq_page.update(self.state)
         self.run("preset", lambda d: d.set_active_preset(index))
 

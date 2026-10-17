@@ -71,7 +71,8 @@ sudo udevadm control --reload &amp;&amp; sudo udevadm trigger --subsystem-match=
           <div class="slots" id="slots" role="radiogroup" aria-label="Aktives EQ-Preset"></div>
           <div class="library">
             <label class="visually-hidden" for="factory">Werks-Preset laden</label>
-            <select id="factory"><option value="">Werks-Preset laden …</option></select>
+            <select id="factory"><option value="">Werks-Preset wählen …</option></select>
+            <button type="button" class="ghost" id="load-factory">Laden</button>
             <button type="button" class="ghost" id="import">Importieren</button>
             <button type="button" class="ghost" id="export">Exportieren</button>
             <input type="file" id="import-file" accept=".ini,.txt" hidden>

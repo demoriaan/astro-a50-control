@@ -23,23 +23,24 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /** Parse an ACC preset file ([General] Name=..., [Eq_Bands] Eq_* keys). */
 export function parseIni(text, fallbackName = "Import") {
-  const sections = {};
+  const sections = new Map();
   let current = null;
   for (const raw of text.replace(/^﻿/, "").split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith(";") || line.startsWith("#")) continue;
     const head = line.match(/^\[(.+)\]$/);
     if (head) {
-      current = sections[head[1]] ??= {};
+      if (!sections.has(head[1])) sections.set(head[1], new Map());
+      current = sections.get(head[1]);
     } else if (current && line.includes("=")) {
       const at = line.indexOf("=");
-      current[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+      current.set(line.slice(0, at).trim(), line.slice(at + 1).trim());
     }
   }
-  const eq = sections.Eq_Bands;
+  const eq = sections.get("Eq_Bands");
   if (!eq) throw new Error("keine [Eq_Bands]-Sektion gefunden");
   const num = (key, fallback) => {
-    const v = Number(eq[key] ?? fallback);
+    const v = Number(eq.get(key) ?? fallback);
     if (!Number.isFinite(v)) throw new Error(`ungültiger Wert für ${key}`);
     return v;
   };
@@ -53,11 +54,12 @@ export function parseIni(text, fallbackName = "Import") {
       bandwidth: Math.round(width * 10) / 10,
     });
   }
-  return { name: p.clipName(sections.General?.Name || fallbackName), bands };
+  return { name: p.clipName(sections.get("General")?.get("Name") || fallbackName), bands };
 }
 
 export function toIni(preset) {
-  const lines = ["[General]", `Name=${preset.name}`, "", "[Eq_Bands]"];
+  const name = preset.name.replace(/[\r\n]+/g, " ");
+  const lines = ["[General]", `Name=${name}`, "", "[Eq_Bands]"];
   preset.bands.forEach((band, i) => {
     const n = i + 1;
     lines.push(`Eq_Band_${n}=${band.gain}`, `Eq_Freq_Band_${n}=${band.freq}`);

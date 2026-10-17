@@ -66,6 +66,17 @@ class DeviceTests(unittest.TestCase):
         self.assertEqual(self.base.live["bands"][1][0], [0, 100])
 
 
+class TransportTests(unittest.TestCase):
+    def test_two_stray_reports_mean_foreign_traffic(self):
+        from a50control.transport import ForeignTraffic, Transport
+        t = Transport.__new__(Transport)  # no device needed for the bookkeeping
+        t._strays = []
+        t._stray()
+        with self.assertRaises(ForeignTraffic):
+            t._stray()
+        t._stray()  # counter starts over after reporting
+
+
 class WorkerTests(unittest.TestCase):
     def test_replaced_job_moves_to_end(self):
         from a50control.worker import Worker

@@ -5,18 +5,20 @@ import { buildBands, buildDevicePanel, buildMicPanel, buildStreamPanel, el } fro
 import { factoryPresets, parseIni, toIni } from "./presets.js";
 import * as p from "./protocol.js";
 import { JobQueue } from "./queue.js";
-import { grantedDevice, hidSupported, requestDevice, WebHidTransport } from "./transport.js";
+import { ForeignTrafficError, grantedDevice, hidSupported, requestDevice, WebHidTransport } from "./transport.js";
 
 const DEMO = new URLSearchParams(location.search).has("demo");
 
 const POLL_MS = 2000;
-const PRESET_SETTLE_MS = 1500;
 const POLL_FAILURES_BEFORE_RESET = 3;
+const LOCK_NAME = "a50-base-station";
+const FOREIGN_MESSAGE = "Ein anderes Programm spricht gleichzeitig mit der Basisstation (zweiter Tab, A50-Control-Desktop-App, "
+  + "G HUB oder ASTRO Command Center). Schließe es und verbinde neu – sonst können Antworten vertauscht werden.";
 const $ = (id) => document.getElementById(id);
 
 const app = {
   dev: null, hid: null, state: null, queue: new JobQueue(),
-  connecting: false, writes: 0, saving: false, pollFailures: 0, presetSetAt: 0, selected: 0,
+  connecting: false, writes: 0, saving: false, pollFailures: 0, presetGen: 0, selected: 0, releaseLock: null,
 };
 
 // -- feedback ---------------------------------------------------------------
@@ -44,20 +46,45 @@ function errorText(err) {
 
 // -- connection -------------------------------------------------------------
 
+/** Hold an exclusive Web Lock while connected so a second tab of this browser cannot connect. */
+function acquireLock() {
+  if (DEMO || !navigator.locks) return Promise.resolve(() => {});
+  return new Promise((resolve) => {
+    navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) => {
+      if (!lock) {
+        resolve(null);
+        return undefined;
+      }
+      return new Promise((release) => resolve(release));
+    });
+  });
+}
+
 async function connect(device) {
   if (app.connecting || app.dev || !device) return;
   app.connecting = true;
   $("connect").disabled = true;
   showMessage(null);
+  const release = await acquireLock();
+  if (!release) {
+    showMessage("Die Basisstation ist bereits in einem anderen Tab verbunden. Schließe den anderen Tab oder trenne ihn dort.");
+    app.connecting = false;
+    $("connect").disabled = false;
+    return;
+  }
   let dev;
+  let foreign = false;
   try {
     if (DEMO) {
       const { FakeBase } = await import("./demo-base.js");
       dev = new A50(new FakeBase());
     } else {
-      dev = new A50(await WebHidTransport.open(device));
+      dev = new A50(await WebHidTransport.open(device, {
+        onForeign: () => { foreign = true; onForeignTraffic(dev); },
+      }));
     }
   } catch (err) {
+    release();
     showMessage(`Der Browser konnte die Basisstation nicht öffnen (${err.message}). Unter Linux fehlt meist die udev-Regel unten; ansonsten hält ein anderes Programm das Gerät.`);
     app.connecting = false;
     $("connect").disabled = false;
@@ -65,16 +92,20 @@ async function connect(device) {
   }
   try {
     const state = await dev.readAll();
+    if (foreign) throw new ForeignTrafficError("other client detected while reading");
     app.dev = dev;
     app.hid = device;
+    app.releaseLock = release;
     app.state = clone(state);
     app.pollFailures = 0;
     showApp(true);
     renderAll({ cancelDrag: true });
     toast(DEMO ? "Demo: simulierte Basisstation" : "Basisstation verbunden");
   } catch (err) {
+    release();
     await dev.close();
-    showMessage(`${errorText(err)} Schließe andere Programme, die mit der Basisstation sprechen, und versuche es erneut.`);
+    showMessage(err?.name === "ForeignTrafficError" ? FOREIGN_MESSAGE
+      : `${errorText(err)} Schließe andere Programme, die mit der Basisstation sprechen, und versuche es erneut.`);
   } finally {
     app.connecting = false;
     $("connect").disabled = false;
@@ -83,13 +114,20 @@ async function connect(device) {
 
 async function disconnect(message) {
   const dev = app.dev;
+  const release = app.releaseLock;
   app.dev = null;
   app.hid = null;
   app.state = null;
+  app.releaseLock = null;
   app.queue.clear();
-  if (dev) await dev.close();
   showApp(false);
   showMessage(message);
+  if (dev) await dev.close();
+  if (release) release();
+}
+
+function onForeignTraffic(dev) {
+  if (dev && dev === app.dev) disconnect(FOREIGN_MESSAGE);
 }
 
 function showApp(connected) {
@@ -147,13 +185,14 @@ function resync(message) {
 function poll() {
   const dev = app.dev;
   if (!dev || app.queue.pending("poll") || document.hidden) return;
+  const presetGen = app.presetGen;
   app.queue.submit("poll", async () => clone(await dev.readStatus())).then((status) => {
     if (!status || dev !== app.dev) return;
     app.pollFailures = 0;
     const s = app.state;
     for (const key of ["battery", "charging", "mix", "headsetOn", "docked", "headsetVersion"]) s[key] = status[key];
-    const settled = performance.now() - app.presetSetAt > PRESET_SETTLE_MS;
-    if (settled && status.activePreset !== s.activePreset && !app.queue.pending("preset")) {
+    // Only adopt the headset's preset if the user did not switch since this poll was queued.
+    if (presetGen === app.presetGen && status.activePreset !== s.activePreset) {
       s.activePreset = status.activePreset;
       renderEq({ cancelDrag: true });
     }
@@ -168,10 +207,11 @@ function save() {
   renderDirty();
   app.queue.submit("save", async () => { await dev.save(); return clone(dev.state.saved); }).then((saved) => {
     app.saving = false;
-    if (!saved || dev !== app.dev) return;
-    app.state.saved = saved;
-    renderDirty();
-    toast("Im Headset gespeichert");
+    if (saved && dev === app.dev) {
+      app.state.saved = saved;
+      toast("Im Headset gespeichert");
+    }
+    if (app.state) renderDirty();
   }, (err) => {
     app.saving = false;
     onWriteError(err, dev);
@@ -204,9 +244,10 @@ function editBand(i, change) {
   const index = app.state.activePreset;
   const band = activePreset().bands[i];
   const before = { ...band };
-  if ("gain" in change) band.gain = Math.max(p.GAIN_MIN, Math.min(p.GAIN_MAX, change.gain));
-  if ("freq" in change) band.freq = Math.max(p.FREQ_MIN, Math.min(p.FREQ_MAX, change.freq));
-  if ("bandwidth" in change && p.PEAKING_BANDS.includes(i)) band.bandwidth = Math.max(p.BW_MIN, Math.min(p.BW_MAX, change.bandwidth));
+  const has = (key) => Object.hasOwn(change, key) && Number.isFinite(change[key]);
+  if (has("gain")) band.gain = Math.max(p.GAIN_MIN, Math.min(p.GAIN_MAX, change.gain));
+  if (has("freq")) band.freq = Math.max(p.FREQ_MIN, Math.min(p.FREQ_MAX, change.freq));
+  if (has("bandwidth") && p.PEAKING_BANDS.includes(i)) band.bandwidth = Math.max(p.BW_MIN, Math.min(p.BW_MAX, change.bandwidth));
   app.selected = i;
   if (band.gain !== before.gain) {
     const gains = activePreset().bands.map((b) => b.gain);
@@ -222,7 +263,7 @@ function editBand(i, change) {
 
 function activate(index) {
   app.state.activePreset = index;
-  app.presetSetAt = performance.now();
+  app.presetGen++;
   renderEq({ cancelDrag: true });
   run("preset", (d) => d.setActivePreset(index));
 }
@@ -273,6 +314,14 @@ const renderStream = buildStreamPanel($("panel-stream"), actions);
 const device = buildDevicePanel($("panel-device"), actions);
 const slotButtons = Array.from({ length: p.PRESET_COUNT }, (_, i) => {
   const btn = el("button", { type: "button", role: "radio", onclick: () => activate(i) });
+  btn.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + p.PRESET_COUNT) % p.PRESET_COUNT;
+    activate(next);
+    slotButtons[next].focus();
+  });
   $("slots").append(btn);
   return btn;
 });
@@ -282,6 +331,7 @@ function renderEq({ cancelDrag = false } = {}) {
   slotButtons.forEach((btn, i) => {
     btn.textContent = s.live.presets[i].name || `EQ ${i + 1}`;
     btn.setAttribute("aria-checked", String(i === s.activePreset));
+    btn.tabIndex = i === s.activePreset ? 0 : -1;
   });
   graph.setBands(activePreset().bands, { cancelDrag });
   graph.select(app.selected);
@@ -335,9 +385,10 @@ function setupTabs() {
   tabs.forEach((tab, i) => {
     tab.addEventListener("click", () => select(tab));
     tab.addEventListener("keydown", (e) => {
-      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-      if (!step) return;
-      const next = tabs[(i + step + tabs.length) % tabs.length];
+      const target = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (target === undefined) return;
+      e.preventDefault();
+      const next = tabs[(target + tabs.length) % tabs.length];
       select(next);
       next.focus();
     });
@@ -348,9 +399,10 @@ function setupLibrary() {
   const presets = factoryPresets();
   const select = $("factory");
   presets.forEach((preset, i) => select.append(el("option", { value: i, text: preset.name })));
-  select.addEventListener("change", () => {
+  // Applying writes to the headset, so it needs an explicit button (arrow keys on a
+  // closed <select> would otherwise fire "change" for every step).
+  $("load-factory").addEventListener("click", () => {
     if (select.value !== "") applyPreset(presets[Number(select.value)]);
-    select.value = "";
   });
   $("import").addEventListener("click", () => $("import-file").click());
   $("import-file").addEventListener("change", async (e) => {
@@ -423,9 +475,11 @@ function init() {
   navigator.hid.addEventListener("disconnect", (e) => {
     if (e.device === app.hid) disconnect("Die Basisstation wurde getrennt.");
   });
-  navigator.hid.addEventListener("connect", () => { if (!app.dev) grantedDevice().then(connect); });
+  // Never auto-connect inside a frame: a hostile page could embed this one with allow="hid".
+  const autoConnect = window.top === window;
+  navigator.hid.addEventListener("connect", () => { if (!app.dev && autoConnect) grantedDevice().then(connect); });
   setInterval(poll, POLL_MS);
-  grantedDevice().then(connect);
+  if (autoConnect) grantedDevice().then(connect);
 }
 
 init();

@@ -90,6 +90,7 @@ export class A50 {
     try {
       const major = p.parseU32(await this.t.transact(Cmd.HEADSET_FW_MAJOR, [], { timeout: 2500, retries: 0 }));
       const minor = await this.t.transact(Cmd.HEADSET_FW_MINOR, [], { timeout: 2500, retries: 0 });
+      if (!minor.length) throw new p.ProtocolError("empty headset firmware answer");
       s.headsetVersion = `${major}.${minor[0]}`;
     } catch (err) {
       if (err.name === "DeviceGoneError") throw err;

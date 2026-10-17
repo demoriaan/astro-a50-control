@@ -88,6 +88,13 @@ test("ini import/export round trip and ACC file", () => {
   assert.deepEqual(acc.bands.map((b) => b.bandwidth), [0, 1.7, 2, 0.5, 0]);
   assert.throws(() => parseIni("Name=x"));
   assert.throws(() => parseIni("[Eq_Bands]\nEq_Band_1=abc"));
+  // no prototype pollution from crafted section names
+  assert.throws(() => parseIni("[__proto__]\ntimeout=0\n[constructor]\nassign=1"));
+  assert.equal(({}).timeout, undefined);
+  assert.equal(typeof Object.assign, "function");
+  // names cannot inject lines into exported files
+  const evil = { ...preset, name: "x\n[Eq_Bands]\nEq_Band_1=12" };
+  assert.equal(parseIni(toIni(evil)).bands[0].gain, preset.bands[0].gain);
 });
 
 test("queue: replaced job moves to the end", async () => {

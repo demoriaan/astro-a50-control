@@ -46,9 +46,9 @@ export function rangeRow({ title, desc, min, max, format = String, ends, onChang
 }
 
 /** A radio group rendered as a list of rows. */
-export function choiceGroup({ name, options, onChange }) {
+export function choiceGroup({ name, label, options, onChange }) {
   const inputs = new Map();
-  const rows = el("div", { class: "rows", role: "radiogroup" });
+  const rows = el("div", { class: "rows", role: "radiogroup", "aria-label": label });
   for (const { value, title, desc } of options) {
     const input = el("input", { type: "radio", name, value });
     input.addEventListener("change", () => input.checked && onChange(value));
@@ -91,8 +91,8 @@ export function buildMicPanel(panel, act) {
     onChange: (v) => act.slider(p.Slider.MIC_LEVEL, v) });
   const sidetone = rangeRow({ title: "Sidetone", desc: "Wie laut du dich selbst im Headset hörst", min: 0, max: p.SLIDER_MAX,
     onChange: (v) => act.slider(p.Slider.SIDETONE, v) });
-  const gate = choiceGroup({ name: "noise-gate", options: toOptions(NOISE_GATE), onChange: act.noiseGate });
-  const eq = choiceGroup({ name: "mic-eq", options: toOptions(MIC_EQ), onChange: act.micEq });
+  const gate = choiceGroup({ name: "noise-gate", label: "Noise Gate", options: toOptions(NOISE_GATE), onChange: act.noiseGate });
+  const eq = choiceGroup({ name: "mic-eq", label: "Mikrofon-EQ", options: toOptions(MIC_EQ), onChange: act.micEq });
   panel.append(
     group("Pegel", null, el("div", { class: "rows" }, level.row, sidetone.row)),
     group("Noise Gate", "Wie laut du sprechen musst, damit das Mikrofon öffnet.", gate.rows),
