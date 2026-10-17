@@ -1,4 +1,4 @@
-"""EQ preset library: ACC factory presets plus ACC-compatible .ini import/export."""
+"""EQ preset library: ASTRO factory presets plus .ini import/export (ASTRO Command Center format)."""
 from __future__ import annotations
 
 import configparser
@@ -7,8 +7,8 @@ from pathlib import Path
 from . import protocol as p
 from .protocol import Band, Preset
 
-# (gains, centre frequencies, bandwidths of bands 2-4) as shipped in the
-# AstroCommandCenter.msi preset library (Eq_Band_n / Eq_Freq_Band_n / Eq_Bandwidth_n).
+# ASTRO factory presets: (gains, centre frequencies, bandwidths of bands 2-4)
+# as in the .ini keys Eq_Band_n / Eq_Freq_Band_n / Eq_Bandwidth_n.
 _FACTORY = {
     "ASTRO": ((5, -2, -1, 7, 1), (95, 406, 783, 3901, 6339), (2.0, 2.0, 0.5)),
     "STUDIO": ((0, 0, 0, 5, 7), (95, 419, 783, 3499, 6100), (1.0, 2.0, 1.0)),
@@ -30,7 +30,7 @@ def factory_presets() -> list[Preset]:
 
 
 def load_ini(path: str | Path) -> Preset:
-    """Read an ACC preset file ([General] Name, [Eq_Bands] Eq_* keys)."""
+    """Read an ASTRO Command Center preset file ([General] Name, [Eq_Bands] Eq_* keys)."""
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.optionxform = str
     if not cfg.read(path, encoding="utf-8-sig"):

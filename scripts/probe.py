@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Read-only protocol probe for the ASTRO A50 Gen 4 base station.
 
-Sends only *read* commands recovered from AstroCommandCenter.exe and dumps the
-raw responses. Usage: probe.py [/dev/hidrawN]   (default: auto-detect)
+Sends only *read* commands and dumps the raw responses. Usage: probe.py [/dev/hidrawN]   (default: auto-detect)
 """
 import os
 import select

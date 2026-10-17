@@ -1,7 +1,7 @@
-// EQ preset library: ACC factory presets and ACC-compatible .ini import/export.
+// EQ preset library: ASTRO factory presets and .ini import/export (ASTRO Command Center format).
 import * as p from "./protocol.js";
 
-// [gains, centre frequencies, bandwidths of bands 2-4] from the AstroCommandCenter.msi library.
+// [gains, centre frequencies, bandwidths of bands 2-4] of the ASTRO factory presets.
 const FACTORY = {
   ASTRO: [[5, -2, -1, 7, 1], [95, 406, 783, 3901, 6339], [2.0, 2.0, 0.5]],
   STUDIO: [[0, 0, 0, 5, 7], [95, 419, 783, 3499, 6100], [1.0, 2.0, 1.0]],
@@ -21,7 +21,7 @@ export function factoryPresets() {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-/** Parse an ACC preset file ([General] Name=..., [Eq_Bands] Eq_* keys). */
+/** Parse an ASTRO Command Center preset file ([General] Name=..., [Eq_Bands] Eq_* keys). */
 export function parseIni(text, fallbackName = "Import") {
   const sections = new Map();
   let current = null;

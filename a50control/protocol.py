@@ -1,8 +1,7 @@
 """Wire protocol of the ASTRO A50 Gen 4 base station.
 
-Recovered from ASTRO Command Center (AstroCommandCenter.exe, MSI build
-2021-05-05) and verified against a live base station (9886:002c). See
-docs/PROTOCOL.md for the evidence behind each command.
+Verified against a live base station (9886:002c). See docs/PROTOCOL.md for the
+evidence behind each command.
 
 All traffic uses the vendor HID collection (usage page 0xFF32) with report ID 2
 and 64-byte reports:
@@ -11,7 +10,7 @@ and 64-byte reports:
     response: [0x02, status, seq << 6 | len, data...]
 
 status 0x02 means success; some setters (brightness) answer with status 0x00
-and no data, which ACC also accepts. On failure (status 0x01) data holds a little-endian
+and no data, which also counts as success. On failure (status 0x01) data holds a little-endian
 u32 error code followed by a NUL-terminated message such as
 "HID_ERROR_UNHANDLED_PACKET". Commands with bit 7 set are relayed to the
 headset; the base station expects an extra 0x0A byte in front of their payload.
@@ -89,7 +88,7 @@ class MicEq(IntEnum):
     WARM = 2
 
 
-# Ranges taken from the ACC range getters (FUN_00485cb0/db0/f00/f90).
+# Value ranges.
 PRESET_COUNT = 3
 BAND_COUNT = 5
 GAIN_MIN, GAIN_MAX = -12, 12
@@ -186,7 +185,7 @@ def raw_to_gain(raw: int) -> int:
 
 
 def bw_to_raw(bandwidth: float) -> int:
-    # ACC truncates; rounding matches values stored by the factory presets (0.1 -> 0x019a).
+    # Round, so values match the stored factory presets (0.1 -> 0x019a).
     return round(bandwidth * BW_SCALE) & 0xFFFF
 
 
@@ -240,7 +239,7 @@ def parse_u32(data: bytes) -> int:
 
 
 def parse_headset_status(data: bytes) -> tuple[bool, bool]:
-    """HEADSET_STATUS -> (switched on, docked); ACC FUN_0048f070 reads the same bits."""
+    """HEADSET_STATUS -> (switched on, docked)."""
     raw = data[0] if data else 0
     return bool(raw & 0x02), bool(raw & 0x01)
 

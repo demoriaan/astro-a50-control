@@ -192,7 +192,7 @@ export class A50 {
     this.state.live.autoOff = o;
   }
 
-  /** Persist the live settings on the headset (ACC calls this "sync"); takes ~2 s. */
+  /** Persist the live settings on the headset; takes ~2 s. */
   async save() {
     for (let attempt = 0; attempt < 2; attempt++) {
       const code = p.expectEcho(await this.t.transact(Cmd.SAVE, [], { timeout: 5000 }), Cmd.SAVE)[0];

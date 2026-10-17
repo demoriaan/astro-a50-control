@@ -192,7 +192,7 @@ class A50:
         self.state.live.auto_off = option
 
     def save(self) -> None:
-        """Persist the live settings on the headset (ACC calls this 'sync')."""
+        """Persist the live settings on the headset."""
         for attempt in range(2):
             data = self.t.transact(Cmd.SAVE, timeout=5.0)
             code = p.expect_echo(data, Cmd.SAVE)[:1]

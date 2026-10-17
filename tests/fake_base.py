@@ -7,7 +7,7 @@ from a50control.protocol import Cmd
 
 
 class FakeBase:
-    """Drop-in for Transport: answers transact() like the real firmware (Mimas)."""
+    """Drop-in for Transport: answers transact() like the real firmware."""
 
     def __init__(self):
         self.live = {

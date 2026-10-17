@@ -78,7 +78,7 @@ test("shelf bands never get a bandwidth", async () => {
   assert.deepEqual(base.live.bands[1][0], [0, 100]);
 });
 
-test("ini import/export round trip and ACC file", () => {
+test("ini import/export round trip and ASTRO Command Center file", () => {
   const preset = factoryPresets()[0];
   assert.deepEqual(parseIni(toIni(preset)), preset);
   const acc = parseIni("[General]\nName=A50 MOD KIT\n\n[Eq_Bands]\nEq_Band_1=-5\nEq_Band_2=-7\nEq_Band_3=5\nEq_Band_4=-7\nEq_Band_5=5\n"
